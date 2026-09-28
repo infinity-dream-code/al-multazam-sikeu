@@ -247,37 +247,10 @@ class DataSiswaController extends Controller
             ->select($select)
             ->get();
 
-        $musrifahUsernames = $records
-            ->pluck("musrifah")
-            ->filter(fn ($v) => $v !== null && trim((string) $v) !== "")
-            ->map(fn ($v) => trim((string) $v))
-            ->unique()
-            ->values();
-
-        $musrifahNamaMap = [];
-        if ($musrifahUsernames->isNotEmpty()) {
-            $musrifahRows = sholat_user::query()
-                ->where("role", "Musrifah")
-                ->where(function ($q) use ($musrifahUsernames) {
-                    foreach ($musrifahUsernames as $username) {
-                        $q->orWhereRaw("LOWER(TRIM(username)) = ?", [strtolower($username)]);
-                    }
-                })
-                ->get(["username", "nama"]);
-
-            foreach ($musrifahRows as $row) {
-                $key = strtolower(trim((string) $row->username));
-                $musrifahNamaMap[$key] = trim((string) ($row->nama ?? ""));
-            }
-        }
-
-        $records = $records->map(function ($item) use ($musrifahNamaMap) {
+        $records = $records->map(function ($item) {
                 $row = $item->toArray();
                 $nis = trim((string) ($item->nocust ?? ''));
                 $musrifah = trim((string) ($item->musrifah ?? ''));
-                $musrifahNama = $musrifah !== ''
-                    ? ($musrifahNamaMap[strtolower($musrifah)] ?? '')
-                    : '';
                 $row["item_id"] = $item->CUSTID;
                 $row["nis"] = $item->nocust;
                 $row["va_spp"] = ($nis !== '' && $nis !== '-')
@@ -294,9 +267,7 @@ class DataSiswaController extends Controller
                 $row["ayah"] = $item->GENUS;
                 $row["no_wa"] = $item->NO_WA;
                 $row["musrifah"] = $musrifah;
-                $row["musrifah_nama"] = $musrifahNama;
-                // Tampilkan nama musrifah; kalau nama kosong baru fallback username
-                $row["musrifah_display"] = $musrifahNama !== '' ? $musrifahNama : $musrifah;
+                $row["musrifah_display"] = $musrifah;
                 $row["edit_siswa"] = true;
                 $row["set_status"] = true;
                 unset($row["CUSTID"]);
@@ -355,16 +326,15 @@ class DataSiswaController extends Controller
             });
         }
 
-        $items = $query->orderBy("nama", "asc")
+        $items = $query->orderBy("username", "asc")
             ->limit(50)
-            ->get(["username", "nama"])
+            ->get(["username"])
             ->map(function ($item) {
-                $nama = trim((string) ($item->nama ?? ""));
                 $username = trim((string) ($item->username ?? ""));
 
                 return [
                     "id" => $username,
-                    "text" => $nama !== "" ? $nama : $username,
+                    "text" => $username,
                 ];
             })
             ->values();

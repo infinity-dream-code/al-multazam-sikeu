@@ -657,13 +657,11 @@
                 setValue('#form-edit-siswa [name="alamat"]', pickValue(rowData.alamat, rowData.desc05, rowData.DESC05));
                 setValue('#form-edit-siswa [name="item_id"]', rowData.item_id ?? '');
 
-                const musrifahUsername = pickValue(rowData.musrifah);
-                const musrifahNama = pickValue(rowData.musrifah_nama, rowData.musrifah_display);
+                const musrifahUsername = pickValue(rowData.musrifah, rowData.musrifah_display);
                 const $musrifah = $('#edit_siswa-musrifah');
                 $musrifah.empty();
                 if (musrifahUsername) {
-                    const label = musrifahNama || musrifahUsername;
-                    $musrifah.append(new Option(label, musrifahUsername, true, true));
+                    $musrifah.append(new Option(musrifahUsername, musrifahUsername, true, true));
                 }
                 $musrifah.trigger('change');
             }
