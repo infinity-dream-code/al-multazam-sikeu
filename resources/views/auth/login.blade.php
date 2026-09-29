@@ -27,7 +27,6 @@
                             </span>
                         </a>
                         <h4 class="mb-0 mt-3">Al-Multazam</h4>
-                        <p class="text-muted mb-0">Kuningan, Jabar</p>
                     </div>
 
                     <div class="card-body mt-2">

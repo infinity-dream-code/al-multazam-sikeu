@@ -8,7 +8,6 @@
             </span>
             <span class="app-brand-text demo menu-text fw-bold ms-2 lh-sm">
                 Al-Multazam
-                <small class="d-block fw-normal text-muted" style="font-size: 0.65rem;">Kuningan, Jabar</small>
             </span>
         </a>
         <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">

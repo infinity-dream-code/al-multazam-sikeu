@@ -200,7 +200,7 @@
                                             </div>
                                             <div class="flex-grow-1">
                                                 <span class="fw-medium d-block small">Al-Multazam</span>
-                                                <small class="text-muted">Kuningan, Jabar</small>
+                                                <small class="text-muted">admin</small>
                                             </div>
                                         </div>
                                     </a>

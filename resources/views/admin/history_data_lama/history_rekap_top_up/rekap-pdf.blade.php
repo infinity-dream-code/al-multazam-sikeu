@@ -107,7 +107,7 @@
     </div>
 
     <div style="margin-top:24px;text-align:right;font-size:10px;">
-        Raudhatul Quran, {{ now()->format('Y-m-d') }}
+        Al-Multazam, {{ now()->format('Y-m-d') }}
     </div>
 </body>
 </html>
