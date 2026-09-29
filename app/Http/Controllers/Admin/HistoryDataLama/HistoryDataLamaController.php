@@ -8,13 +8,7 @@ class HistoryDataLamaController extends Controller
 {
     private string $title = 'History Data Lama';
 
-    private array $pages = [
-        'history-transaksi' => 'History Transaksi',
-        'history-transaksi-belanja' => 'History Transaksi Belanja',
-        'history-rekap-cashout' => 'History Rekap Cashout',
-        'history-rekap-top-up' => 'History Rekap Top Up',
-        'history-pencairan-kantin' => 'History Pencairan Kantin',
-    ];
+    private array $pages = [];
 
     public function index(string $page)
     {

@@ -77,22 +77,22 @@
                         <div data-i18n="History Transaksi">History Transaksi</div>
                     </a>
                 </li>
-                <li class="menu-item {{ Request::is(['admin/history-data-lama/history-transaksi-belanja']) ? 'active' : '' }}">
+                <li class="menu-item {{ Request::is(['admin/history-data-lama/history-transaksi-belanja*']) ? 'active' : '' }}">
                     <a href="{{ route('admin.history-data-lama.history-transaksi-belanja.index') }}" class="menu-link">
                         <div data-i18n="History Transaksi Belanja">History Transaksi Belanja</div>
                     </a>
                 </li>
-                <li class="menu-item {{ Request::is(['admin/history-data-lama/history-rekap-cashout']) ? 'active' : '' }}">
+                <li class="menu-item {{ Request::is(['admin/history-data-lama/history-rekap-cashout*']) ? 'active' : '' }}">
                     <a href="{{ route('admin.history-data-lama.history-rekap-cashout.index') }}" class="menu-link">
                         <div data-i18n="History Rekap Cashout">History Rekap Cashout</div>
                     </a>
                 </li>
-                <li class="menu-item {{ Request::is(['admin/history-data-lama/history-rekap-top-up']) ? 'active' : '' }}">
+                <li class="menu-item {{ Request::is(['admin/history-data-lama/history-rekap-top-up*']) ? 'active' : '' }}">
                     <a href="{{ route('admin.history-data-lama.history-rekap-top-up.index') }}" class="menu-link">
                         <div data-i18n="History Rekap Top Up">History Rekap Top Up</div>
                     </a>
                 </li>
-                <li class="menu-item {{ Request::is(['admin/history-data-lama/history-pencairan-kantin']) ? 'active' : '' }}">
+                <li class="menu-item {{ Request::is(['admin/history-data-lama/history-pencairan-kantin*']) ? 'active' : '' }}">
                     <a href="{{ route('admin.history-data-lama.history-pencairan-kantin.index') }}" class="menu-link">
                         <div data-i18n="History Pencairan Kantin">History Pencairan Kantin</div>
                     </a>

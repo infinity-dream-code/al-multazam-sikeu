@@ -155,20 +155,26 @@ Route::prefix("admin")
                 Route::get("history-transaksi", [\App\Http\Controllers\Admin\HistoryDataLama\HistoryTransaksiController::class, "index"])
                     ->name("history-transaksi.index");
 
-                Route::controller(\App\Http\Controllers\Admin\HistoryDataLama\HistoryDataLamaController::class)
+                Route::get("history-transaksi-belanja", [\App\Http\Controllers\Admin\HistoryDataLama\HistoryTransaksiBelanjaController::class, "index"])
+                    ->name("history-transaksi-belanja.index");
+
+                Route::get("history-rekap-cashout", [\App\Http\Controllers\Admin\HistoryDataLama\HistoryRekapCashoutController::class, "index"])
+                    ->name("history-rekap-cashout.index");
+
+                Route::controller(\App\Http\Controllers\Admin\HistoryDataLama\HistoryRekapTopUpController::class)
+                    ->prefix("history-rekap-top-up")
+                    ->name("history-rekap-top-up.")
                     ->group(function () {
-                        Route::get("history-transaksi-belanja", "index")
-                            ->defaults("page", "history-transaksi-belanja")
-                            ->name("history-transaksi-belanja.index");
-                        Route::get("history-rekap-cashout", "index")
-                            ->defaults("page", "history-rekap-cashout")
-                            ->name("history-rekap-cashout.index");
-                        Route::get("history-rekap-top-up", "index")
-                            ->defaults("page", "history-rekap-top-up")
-                            ->name("history-rekap-top-up.index");
-                        Route::get("history-pencairan-kantin", "index")
-                            ->defaults("page", "history-pencairan-kantin")
-                            ->name("history-pencairan-kantin.index");
+                        Route::get("/", "index")->name("index");
+                        Route::post("cetak", "printRekap")->name("cetak");
+                    });
+
+                Route::controller(\App\Http\Controllers\Admin\HistoryDataLama\HistoryPencairanKantinController::class)
+                    ->prefix("history-pencairan-kantin")
+                    ->name("history-pencairan-kantin.")
+                    ->group(function () {
+                        Route::get("/", "index")->name("index");
+                        Route::post("/", "store")->name("store");
                     });
             });
 
