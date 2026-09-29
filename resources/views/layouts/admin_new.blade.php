@@ -185,7 +185,7 @@
                             <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                data-bs-toggle="dropdown">
                                 <div class="avatar avatar-online">
-                                    <img src="{{asset('logo.png')}}" alt class="rounded-circle">
+                                    <img src="{{asset('iconku.png')}}" alt class="rounded-circle">
                                 </div>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
@@ -194,13 +194,13 @@
                                         <div class="d-flex">
                                             <div class="flex-shrink-0 me-2">
                                                 <div class="avatar avatar-online">
-                                                    <img src="{{asset('logo.png')}}" alt
+                                                    <img src="{{asset('iconku.png')}}" alt
                                                          class="rounded-circle">
                                                 </div>
                                             </div>
                                             <div class="flex-grow-1">
-                                                <span class="fw-medium d-block small">{{config('app.name')}}</span>
-                                                <small class="text-muted">admin</small>
+                                                <span class="fw-medium d-block small">Al-Multazam</span>
+                                                <small class="text-muted">Kuningan, Jabar</small>
                                             </div>
                                         </div>
                                     </a>

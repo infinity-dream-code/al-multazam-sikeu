@@ -149,6 +149,29 @@ Route::prefix("admin")
                 });
         });
 
+        Route::prefix("history-data-lama")
+            ->name("history-data-lama.")
+            ->group(function () {
+                Route::get("history-transaksi", [\App\Http\Controllers\Admin\HistoryDataLama\HistoryTransaksiController::class, "index"])
+                    ->name("history-transaksi.index");
+
+                Route::controller(\App\Http\Controllers\Admin\HistoryDataLama\HistoryDataLamaController::class)
+                    ->group(function () {
+                        Route::get("history-transaksi-belanja", "index")
+                            ->defaults("page", "history-transaksi-belanja")
+                            ->name("history-transaksi-belanja.index");
+                        Route::get("history-rekap-cashout", "index")
+                            ->defaults("page", "history-rekap-cashout")
+                            ->name("history-rekap-cashout.index");
+                        Route::get("history-rekap-top-up", "index")
+                            ->defaults("page", "history-rekap-top-up")
+                            ->name("history-rekap-top-up.index");
+                        Route::get("history-pencairan-kantin", "index")
+                            ->defaults("page", "history-pencairan-kantin")
+                            ->name("history-pencairan-kantin.index");
+                    });
+            });
+
         Route::prefix("keuangan")->name("keuangan.")->group(function () {
             Route::controller(\App\Http\Controllers\Admin\Keuangan\ManualPembayaranController::class)
                 ->prefix("manual-pembayaran")->name("manual-pembayaran.")->group(function () {

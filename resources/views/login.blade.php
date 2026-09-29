@@ -21,14 +21,16 @@
             <div class="authentication-inner py-4">
                 <!-- Login -->
                 <div class="card p-2">
-                    <div class="app-brand justify-content-center mt-5">
+                    <div class="app-brand justify-content-center mt-5 flex-column text-center">
                         <a href="{{route('index')}}" class="app-brand-link gap-2">
                             <span class="app-brand-logo demo">
                                 <span style="color: #666cff">
-                                        <img width="100" height="100" src="{{asset('logo.png')}}" alt="logo">
+                                        <img width="100" height="100" src="{{asset('iconku.png')}}" alt="Al-Multazam">
                                 </span>
                             </span>
                         </a>
+                        <h4 class="mb-0 mt-3">Al-Multazam</h4>
+                        <p class="text-muted mb-0">Kuningan, Jabar</p>
                     </div>
 
                     <div class="card-body mt-2">
