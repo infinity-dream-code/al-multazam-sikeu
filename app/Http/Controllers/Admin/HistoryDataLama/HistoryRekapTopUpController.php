@@ -11,6 +11,8 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class HistoryRekapTopUpController extends Controller
@@ -19,19 +21,28 @@ class HistoryRekapTopUpController extends Controller
 
     private const CASH_FEE = 2000;
 
-    private const TRAN_TABLE = 'sccttran_cashless';
-
     private const METODE_TOPUP = 'TOP UP CASH';
 
-    /** Max 15 char (kolom METODE sccttran_cashless) */
     private const METODE_FEE = 'BIAYA TOPUP FEE';
 
     private const FIDBANK = '1140002';
 
+    private string $tranTable = 'sccttran';
+
+    private bool $hasHelpdesk = false;
+
     public function index(Request $request): View
     {
+        $cutoffOptions = $this->fetchCutoffOptions();
         $isSearch = $request->boolean('search');
         $filters = $this->filtersFromRequest($request);
+
+        if (($filters['periode_cutoff'] ?? '') === '' && !empty($cutoffOptions)) {
+            $filters['periode_cutoff'] = (string) ($cutoffOptions[0]->value ?? 'sccttran');
+        }
+
+        $this->tranTable = $this->resolveTranTable($filters['periode_cutoff'] ?? '');
+        $this->hasHelpdesk = $this->detectHelpdeskColumn($this->tranTable);
 
         $thnAka = $this->fetchThnAka();
         $kelasOptions = $this->fetchKelasOptions();
@@ -41,10 +52,20 @@ class HistoryRekapTopUpController extends Controller
             'query' => $request->query(),
         ]);
         $totals = ['topup' => 0, 'fee' => 0, 'grand' => 0];
+        $errorMessage = null;
 
         if ($isSearch) {
-            $rows = $this->fetchRows($filters, $request);
-            $totals = $this->sumPageTotals($rows);
+            try {
+                $rows = $this->fetchRows($filters, $request);
+                $totals = $this->sumPageTotals($rows);
+            } catch (\Throwable $e) {
+                Log::error('HistoryRekapTopUp fetchRows failed', [
+                    'message' => $e->getMessage(),
+                    'table' => $this->tranTable,
+                ]);
+                report($e);
+                $errorMessage = 'Gagal memuat data [' . $this->tranTable . ']: ' . $e->getMessage();
+            }
         }
 
         return view('admin.history_data_lama.history_rekap_top_up.index', [
@@ -57,36 +78,53 @@ class HistoryRekapTopUpController extends Controller
             'totals' => $totals,
             'thnAka' => $thnAka,
             'kelasOptions' => $kelasOptions,
+            'cutoffOptions' => $cutoffOptions,
+            'errorMessage' => $errorMessage,
         ]);
     }
 
     public function printRekap(Request $request): Response|RedirectResponse
     {
         $filters = $this->filtersFromRequest($request);
+        $this->tranTable = $this->resolveTranTable($filters['periode_cutoff'] ?? '');
+        $this->hasHelpdesk = $this->detectHelpdeskColumn($this->tranTable);
 
-        $totalCount = (int) $this->baseQuery($filters)->count('t.CUSTID');
-        if ($totalCount <= 0) {
+        try {
+            $totalCount = (int) $this->baseQuery($filters)->count('t.CUSTID');
+            if ($totalCount <= 0) {
+                return redirect()
+                    ->route('admin.history-data-lama.history-rekap-top-up.index', array_merge($filters, ['search' => 1]))
+                    ->with('error', 'Tidak ada data rekap untuk dicetak.');
+            }
+
+            $totals = $this->sumTotalsSql($filters);
+            $sekolahNama = $this->fetchSekolahNama();
+
+            $pdf = Pdf::loadView('admin.history_data_lama.history_rekap_top_up.rekap-pdf', [
+                'sekolahNama' => $sekolahNama,
+                'filters' => $filters,
+                'rows' => $this->fetchAllRowsForPrint($filters),
+                'totals' => $totals,
+            ])->setPaper('a4', 'landscape');
+
+            return $pdf->stream('rekap-topup-uang-saku-' . date('Ymd-His') . '.pdf');
+        } catch (\Throwable $e) {
+            Log::error('HistoryRekapTopUp printRekap failed', [
+                'message' => $e->getMessage(),
+                'table' => $this->tranTable,
+            ]);
+            report($e);
+
             return redirect()
                 ->route('admin.history-data-lama.history-rekap-top-up.index', array_merge($filters, ['search' => 1]))
-                ->with('error', 'Tidak ada data rekap untuk dicetak.');
+                ->with('error', 'Gagal mencetak [' . $this->tranTable . ']: ' . $e->getMessage());
         }
-
-        $totals = $this->sumTotalsSql($filters);
-        $sekolahNama = $this->fetchSekolahNama();
-
-        $pdf = Pdf::loadView('admin.history_data_lama.history_rekap_top_up.rekap-pdf', [
-            'sekolahNama' => $sekolahNama,
-            'filters' => $filters,
-            'rows' => $this->fetchAllRowsForPrint($filters),
-            'totals' => $totals,
-        ])->setPaper('a4', 'landscape');
-
-        return $pdf->stream('rekap-topup-uang-saku-' . date('Ymd-His') . '.pdf');
     }
 
     private function filtersFromRequest(Request $request): array
     {
         return [
+            'periode_cutoff' => trim((string) $request->input('periode_cutoff', $request->query('periode_cutoff', ''))),
             'thn_angkatan' => trim((string) $request->input('thn_angkatan', $request->query('thn_angkatan', ''))),
             'kelas_id' => trim((string) $request->input('kelas_id', $request->query('kelas_id', ''))),
             'nis' => trim((string) $request->input('nis', $request->query('nis', ''))),
@@ -96,13 +134,51 @@ class HistoryRekapTopUpController extends Controller
         ];
     }
 
+    private function resolveTranTable(string $periodeCutoff): string
+    {
+        $periodeCutoff = trim($periodeCutoff);
+
+        if (preg_match('/^sccttran_\d{8}$/', $periodeCutoff)) {
+            try {
+                if (Schema::connection('DATA_MYSQL')->hasTable($periodeCutoff)) {
+                    return $periodeCutoff;
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+
+            return 'sccttran';
+        }
+
+        try {
+            if (Schema::connection('DATA_MYSQL')->hasTable('sccttran_cashless')) {
+                return 'sccttran_cashless';
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        return 'sccttran';
+    }
+
+    private function detectHelpdeskColumn(string $table): bool
+    {
+        try {
+            return Schema::connection('DATA_MYSQL')->hasColumn($table, 'HELPDESK');
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     private function baseQuery(array $filters)
     {
+        $t = $this->tranTable;
+
         $query = DB::connection('DATA_MYSQL')
-            ->table(self::TRAN_TABLE . ' as t')
+            ->table("{$t} as t")
             ->join('scctcust', 't.CUSTID', '=', 'scctcust.CUSTID')
             ->leftJoin('mst_kelas', DB::raw('CAST(mst_kelas.id AS CHAR)'), '=', DB::raw('TRIM(scctcust.CODE03)'))
-            ->leftJoin(self::TRAN_TABLE . ' as fee', function ($join) {
+            ->leftJoin("{$t} as fee", function ($join) {
                 $join->on('fee.TRANSNO', '=', 't.TRANSNO')
                     ->on('fee.CUSTID', '=', 't.CUSTID')
                     ->where(function ($q) {
@@ -121,6 +197,10 @@ class HistoryRekapTopUpController extends Controller
                 })->orWhere(function ($q2) {
                     $q2->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['TOPUP'])
                         ->where('t.KREDIT', '>', 0);
+                })->orWhere(function ($q2) {
+                    // Variasi Al-Multazam: TOP UP X / TOP UP, dll
+                    $q2->whereRaw('UPPER(TRIM(t.METODE)) LIKE ?', ['TOP UP%'])
+                        ->where('t.KREDIT', '>', 0);
                 });
             })
             ->where('t.KREDIT', '>', 0);
@@ -138,13 +218,15 @@ class HistoryRekapTopUpController extends Controller
             'scctcust.NMCUST as nama',
             't.KREDIT as topup',
             't.TRXDATE as tgl_transaksi',
-            DB::raw('COALESCE(NULLIF(TRIM(t.TRANSNO), \'\'), NULLIF(TRIM(t.NOREFF), \'\'), \'-\') as no_transaksi'),
-            't.HELPDESK as helpdesk',
+            DB::raw("COALESCE(NULLIF(TRIM(t.TRANSNO), ''), NULLIF(TRIM(t.NOREFF), ''), '-') as no_transaksi"),
+            $this->hasHelpdesk
+                ? 't.HELPDESK as helpdesk'
+                : DB::raw("'' as helpdesk"),
             't.METODE as metode',
             DB::raw('CAST(COALESCE(fee.DEBET, 0) AS SIGNED) as fee_debet'),
-            DB::raw('COALESCE(NULLIF(TRIM(mst_kelas.jenjang), \'\'), TRIM(scctcust.DESC02), \'-\') as kelas'),
-            DB::raw('COALESCE(NULLIF(TRIM(mst_kelas.kelas), \'\'), TRIM(scctcust.DESC03), \'-\') as kelompok'),
-            DB::raw('COALESCE(NULLIF(TRIM(scctcust.CODE04), \'\'), \'-\') as gender'),
+            DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.jenjang), ''), TRIM(scctcust.DESC02), '-') as kelas"),
+            DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.kelas), ''), TRIM(scctcust.DESC03), '-') as kelompok"),
+            DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
         ];
     }
 
@@ -191,24 +273,34 @@ class HistoryRekapTopUpController extends Controller
         ];
     }
 
-    /** Agregat SQL — dipakai cetak PDF, tanpa load semua baris ke PHP. */
     private function sumTotalsSql(array $filters): array
     {
         $cashFee = self::CASH_FEE;
         $metodeTopup = self::METODE_TOPUP;
+
+        if ($this->hasHelpdesk) {
+            $feeExpr = "CASE
+                WHEN COALESCE(fee.DEBET, 0) > 0 THEN CAST(fee.DEBET AS SIGNED)
+                WHEN t.HELPDESK LIKE ? THEN
+                    CAST(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(t.HELPDESK, 'Biaya:', -1), '|', 1)) AS SIGNED)
+                WHEN UPPER(TRIM(t.METODE)) IN ('CASH', ?, 'TOP UP CASHLESS') OR UPPER(TRIM(t.METODE)) LIKE 'TOP UP%' THEN ?
+                ELSE 0
+            END";
+            $bindings = ['%Biaya:%', $metodeTopup, $cashFee];
+        } else {
+            $feeExpr = "CASE
+                WHEN COALESCE(fee.DEBET, 0) > 0 THEN CAST(fee.DEBET AS SIGNED)
+                WHEN UPPER(TRIM(t.METODE)) IN ('CASH', ?, 'TOP UP CASHLESS') OR UPPER(TRIM(t.METODE)) LIKE 'TOP UP%' THEN ?
+                ELSE 0
+            END";
+            $bindings = [$metodeTopup, $cashFee];
+        }
+
         $row = $this->baseQuery($filters)
             ->selectRaw(
-                'CAST(COALESCE(SUM(t.KREDIT), 0) AS SIGNED) as topup_sum,
-                CAST(COALESCE(SUM(
-                    CASE
-                        WHEN COALESCE(fee.DEBET, 0) > 0 THEN CAST(fee.DEBET AS SIGNED)
-                        WHEN t.HELPDESK LIKE ? THEN
-                            CAST(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(t.HELPDESK, \'Biaya:\', -1), \'|\', 1)) AS SIGNED)
-                        WHEN UPPER(TRIM(t.METODE)) IN (\'CASH\', ?, \'TOP UP CASHLESS\') THEN ?
-                        ELSE 0
-                    END
-                ), 0) AS SIGNED) as fee_sum',
-                ['%Biaya:%', $metodeTopup, $cashFee]
+                "CAST(COALESCE(SUM(t.KREDIT), 0) AS SIGNED) as topup_sum,
+                CAST(COALESCE(SUM({$feeExpr}), 0) AS SIGNED) as fee_sum",
+                $bindings
             )
             ->first();
 
@@ -238,9 +330,12 @@ class HistoryRekapTopUpController extends Controller
             return (int) $m[1];
         }
 
-        return strcasecmp(trim($metode), 'Cash') === 0
-            || strcasecmp(trim($metode), self::METODE_TOPUP) === 0
-            || strcasecmp(trim($metode), 'TOP UP CASHLESS') === 0
+        $m = strtoupper(trim($metode));
+
+        return $m === 'CASH'
+            || $m === self::METODE_TOPUP
+            || $m === 'TOP UP CASHLESS'
+            || str_starts_with($m, 'TOP UP')
             ? self::CASH_FEE
             : 0;
     }
@@ -311,7 +406,7 @@ class HistoryRekapTopUpController extends Controller
             $q->whereRaw('TRIM(scctcust.DESC04) = ?', [$full]);
             if ($base !== '' && $base !== $full) {
                 $q->orWhereRaw('TRIM(scctcust.DESC04) = ?', [$base])
-                    ->orWhereRaw('REPLACE(TRIM(scctcust.DESC04), \' \', \'\') LIKE ?', [str_replace(' ', '', $base) . '%']);
+                    ->orWhereRaw("REPLACE(TRIM(scctcust.DESC04), ' ', '') LIKE ?", [str_replace(' ', '', $base) . '%']);
             }
         });
     }
@@ -365,6 +460,51 @@ class HistoryRekapTopUpController extends Controller
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * @return list<object{value: string, label: string}>
+     */
+    private function fetchCutoffOptions(): array
+    {
+        $options = [];
+
+        try {
+            $rows = DB::connection('DATA_MYSQL')->select("SHOW TABLES LIKE 'sccttran\\_%'");
+            foreach ($rows as $row) {
+                $table = (string) (array_values((array) $row)[0] ?? '');
+                if (!preg_match('/^sccttran_(\d{2})(\d{2})(\d{4})$/', $table, $m)) {
+                    continue;
+                }
+
+                $label = $table;
+                try {
+                    $label = Carbon::createFromFormat('d-m-Y', $m[1] . '-' . $m[2] . '-' . $m[3])
+                        ->locale('en')
+                        ->format('d-F-Y');
+                } catch (\Throwable) {
+                    // keep table name
+                }
+
+                $options[] = (object) [
+                    'value' => $table,
+                    'label' => $label,
+                ];
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        usort($options, static function ($a, $b) {
+            $da = preg_match('/_(\d{8})$/', $a->value, $ma) ? $ma[1] : '';
+            $db = preg_match('/_(\d{8})$/', $b->value, $mb) ? $mb[1] : '';
+            $ra = $da !== '' ? (substr($da, 4, 4) . substr($da, 2, 2) . substr($da, 0, 2)) : '';
+            $rb = $db !== '' ? (substr($db, 4, 4) . substr($db, 2, 2) . substr($db, 0, 2)) : '';
+
+            return strcmp($rb, $ra);
+        });
+
+        return $options;
     }
 
     /** @return list<object{thn_aka: string}> */

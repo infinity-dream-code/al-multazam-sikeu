@@ -26,6 +26,18 @@
                 <input type="hidden" name="search" value="1">
                 <div class="row g-3">
                     <div class="col-md-3">
+                        <label class="form-label">Periode Cutoff</label>
+                        <select class="form-select" name="periode_cutoff">
+                            @foreach (($cutoffOptions ?? []) as $opt)
+                                @php
+                                    $val = is_object($opt) ? ($opt->value ?? '') : (string) $opt;
+                                    $lbl = is_object($opt) ? ($opt->label ?? $val) : (string) $opt;
+                                @endphp
+                                <option value="{{ $val }}" @selected(($filters['periode_cutoff'] ?? '') === $val)>{{ $lbl }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label">Tahun Angkatan</label>
                         <select class="form-select" name="thn_angkatan">
                             <option value="">Semua</option>
@@ -87,6 +99,7 @@
 
             <form method="POST" action="{{ route('admin.history-data-lama.history-rekap-top-up.cetak') }}" id="rtFormCetak" target="_blank" class="d-none">
                 @csrf
+                <input type="hidden" name="periode_cutoff" value="{{ $filters['periode_cutoff'] ?? '' }}">
                 <input type="hidden" name="thn_angkatan" value="{{ $filters['thn_angkatan'] ?? '' }}">
                 <input type="hidden" name="kelas_id" value="{{ $filters['kelas_id'] ?? '' }}">
                 <input type="hidden" name="nis" value="{{ $filters['nis'] ?? '' }}">
@@ -104,6 +117,9 @@
                 <small class="text-muted">{{ $rows->total() ?? 0 }} transaksi</small>
             @endif
         </div>
+        @if (!empty($errorMessage))
+            <div class="alert alert-danger m-3 mb-0">{{ $errorMessage }}</div>
+        @endif
         @if ($isSearch ?? false)
             <div class="card-body border-bottom py-2">
                 <div class="row g-2 small">
