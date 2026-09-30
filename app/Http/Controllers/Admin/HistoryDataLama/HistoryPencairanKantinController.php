@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class HistoryPencairanKantinController extends Controller
@@ -137,46 +138,109 @@ class HistoryPencairanKantinController extends Controller
    */
     private function fetchMercanOptions(): array
     {
-        try {
-            $fromMercan = DB::connection('DATA_MYSQL')
-                ->table('sm_mercan')
-                ->whereNotNull('KDMERCAN')
-                ->where('KDMERCAN', '!=', '')
-                ->orderBy('NamaMercan')
-                ->get(['KDMERCAN', 'NamaMercan']);
+        $db = DB::connection('DATA_MYSQL');
+        $options = [];
+        $seen = [];
 
-            if ($fromMercan->isNotEmpty()) {
-                return $fromMercan->map(static function ($row) {
-                    return (object) [
-                        'kode' => trim((string) ($row->KDMERCAN ?? '')),
-                        'nama' => trim((string) ($row->NamaMercan ?? $row->KDMERCAN ?? '')),
-                    ];
-                })->filter(static fn ($r) => $r->kode !== '')->values()->all();
+        $push = static function (string $kode, string $nama) use (&$options, &$seen): void {
+            $kode = trim($kode);
+            if ($kode === '' || isset($seen[$kode])) {
+                return;
+            }
+            $seen[$kode] = true;
+            $nama = trim($nama);
+            $options[] = (object) [
+                'kode' => $kode,
+                'nama' => $nama !== '' ? $nama : $kode,
+            ];
+        };
+
+        // 1) Master merchant
+        try {
+            if (Schema::connection('DATA_MYSQL')->hasTable('sm_mercan')) {
+                $rows = $db->table('sm_mercan')
+                    ->whereNotNull('KDMERCAN')
+                    ->where('KDMERCAN', '!=', '')
+                    ->orderBy('NamaMercan')
+                    ->get();
+                foreach ($rows as $row) {
+                    $push(
+                        (string) ($row->KDMERCAN ?? ''),
+                        (string) ($row->NamaMercan ?? $row->KDMERCAN ?? '')
+                    );
+                }
             }
         } catch (\Throwable) {
-            // fallback ke sm_kantin
+            // continue
         }
 
+        // 2) Master kantin (KDMERCAN atau username)
         try {
-            return DB::connection('DATA_MYSQL')
-                ->table('sm_kantin')
-                ->whereNotNull('KDMERCAN')
-                ->where('KDMERCAN', '!=', '')
-                ->orderBy('NamaKantin')
-                ->get(['KDMERCAN', 'NamaKantin'])
-                ->unique('KDMERCAN')
-                ->map(static function ($row) {
-                    return (object) [
-                        'kode' => trim((string) ($row->KDMERCAN ?? '')),
-                        'nama' => trim((string) ($row->NamaKantin ?? $row->KDMERCAN ?? '')),
-                    ];
-                })
-                ->filter(static fn ($r) => $r->kode !== '')
-                ->values()
-                ->all();
+            if (Schema::connection('DATA_MYSQL')->hasTable('sm_kantin')) {
+                $rows = $db->table('sm_kantin')->orderBy('NamaKantin')->get();
+                foreach ($rows as $row) {
+                    $kode = trim((string) ($row->KDMERCAN ?? ''));
+                    if ($kode === '') {
+                        $kode = trim((string) ($row->username ?? $row->Username ?? ''));
+                    }
+                    $nama = trim((string) ($row->NamaKantin ?? $row->NamaMercan ?? $kode));
+                    $push($kode, $nama);
+                }
+            }
         } catch (\Throwable) {
-            return [];
+            // continue
         }
+
+        // 3) Fallback: Teller unik dari scctcashout (BUY) + arsip cutoff terbaru
+        if ($options === []) {
+            $tables = ['scctcashout'];
+            try {
+                $archives = $db->select("SHOW TABLES LIKE 'scctcashout\\_%'");
+                foreach ($archives as $row) {
+                    $name = (string) (array_values((array) $row)[0] ?? '');
+                    if (preg_match('/^scctcashout_\d{8}$/', $name)) {
+                        $tables[] = $name;
+                    }
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+
+            // arsip terbaru dulu
+            usort($tables, static function ($a, $b) {
+                $da = preg_match('/_(\d{8})$/', $a, $ma) ? $ma[1] : '';
+                $dbv = preg_match('/_(\d{8})$/', $b, $mb) ? $mb[1] : '';
+                $ra = $da !== '' ? (substr($da, 4, 4) . substr($da, 2, 2) . substr($da, 0, 2)) : '99999999';
+                $rb = $dbv !== '' ? (substr($dbv, 4, 4) . substr($dbv, 2, 2) . substr($dbv, 0, 2)) : '99999999';
+
+                return strcmp($rb, $ra);
+            });
+
+            foreach ($tables as $table) {
+                try {
+                    $tellers = $db->table($table)
+                        ->whereRaw('UPPER(TRIM(FIDBANK)) = ?', ['BUY'])
+                        ->whereNotNull('Teller')
+                        ->where('Teller', '!=', '')
+                        ->distinct()
+                        ->orderBy('Teller')
+                        ->limit(500)
+                        ->pluck('Teller');
+                    foreach ($tellers as $teller) {
+                        $push((string) $teller, (string) $teller);
+                    }
+                    if ($options !== []) {
+                        break;
+                    }
+                } catch (\Throwable) {
+                    continue;
+                }
+            }
+        }
+
+        usort($options, static fn ($a, $b) => strcasecmp($a->nama, $b->nama));
+
+        return $options;
     }
 
   /**
@@ -198,7 +262,12 @@ class HistoryPencairanKantinController extends Controller
         $this->applySchoolScope($query);
 
         if ($kdMercan !== '') {
-            $query->whereRaw('TRIM(sm_kantin.KDMERCAN) = ?', [$kdMercan]);
+            // Bisa kode merchant ATAU username teller kantin
+            $query->where(function ($q) use ($kdMercan) {
+                $q->whereRaw('TRIM(COALESCE(sm_kantin.KDMERCAN, \'\')) = ?', [$kdMercan])
+                    ->orWhereRaw('TRIM(COALESCE(sm_kantin.username, \'\')) = ?', [$kdMercan])
+                    ->orWhereRaw('TRIM(COALESCE(scctcashout.Teller, \'\')) = ?', [$kdMercan]);
+            });
         }
 
         $from = $this->parseDate($dari);
