@@ -8,6 +8,8 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class HistoryRekapCashoutController extends Controller
@@ -16,9 +18,12 @@ class HistoryRekapCashoutController extends Controller
 
     private string $title = 'History Data Lama';
     private string $mainTitle = 'History Rekap Cashout';
+    private string $tranTable = 'scctran';
 
     public function index(Request $request): View
     {
+        $this->tranTable = $this->resolveTranTable();
+
         $isSearch = $request->boolean('search');
         $filters = [
             'periode_cutoff' => trim((string) $request->query('periode_cutoff', '')),
@@ -30,12 +35,35 @@ class HistoryRekapCashoutController extends Controller
             'sampai_tanggal' => trim((string) $request->query('sampai_tanggal', '')),
         ];
 
-        $rows = $isSearch
-            ? $this->fetchRows($filters)
-            : new LengthAwarePaginator([], 0, self::PER_PAGE, 1, [
-                'path' => $request->url(),
-                'query' => $request->query(),
-            ]);
+        $rows = new LengthAwarePaginator([], 0, self::PER_PAGE, 1, [
+            'path' => $request->url(),
+            'query' => $request->query(),
+        ]);
+
+        if ($isSearch) {
+            try {
+                $rows = $this->fetchRows($filters);
+            } catch (\Throwable $e) {
+                Log::error('HistoryRekapCashout fetchRows failed', [
+                    'message' => $e->getMessage(),
+                    'table' => $this->tranTable,
+                ]);
+                report($e);
+
+                return view('admin.history_data_lama.history_rekap_cashout.index', [
+                    'title' => $this->title,
+                    'mainTitle' => $this->mainTitle,
+                    'dataTitle' => 'History Rekap Keluar Uang Saku Data Cutoff',
+                    'filters' => $filters,
+                    'isSearch' => true,
+                    'rows' => $rows,
+                    'cutoffOptions' => $this->fetchCutoffOptions(),
+                    'thnAka' => $this->fetchThnAka(),
+                    'kelasOptions' => $this->fetchKelasOptions(),
+                    'errorMessage' => 'Gagal memuat data: ' . $e->getMessage(),
+                ]);
+            }
+        }
 
         return view('admin.history_data_lama.history_rekap_cashout.index', [
             'title' => $this->title,
@@ -55,23 +83,69 @@ class HistoryRekapCashoutController extends Controller
         return DB::connection('DATA_MYSQL');
     }
 
+    private function resolveTranTable(): string
+    {
+        try {
+            if (Schema::connection('DATA_MYSQL')->hasTable('scctran')) {
+                return 'scctran';
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        try {
+            if (Schema::connection('DATA_MYSQL')->hasTable('sccttran')) {
+                return 'sccttran';
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        return 'scctran';
+    }
+
+    private function userColumnExpr(string $alias): string
+    {
+        $cols = [];
+        try {
+            $schema = Schema::connection('DATA_MYSQL');
+            if ($schema->hasColumn($this->tranTable, 'MERCH')) {
+                $cols[] = "NULLIF(TRIM({$alias}.MERCH), '')";
+            }
+            if ($schema->hasColumn($this->tranTable, 'MERCHANT')) {
+                $cols[] = "NULLIF(TRIM({$alias}.MERCHANT), '')";
+            }
+            if ($schema->hasColumn($this->tranTable, 'HELPDESK')) {
+                $cols[] = "NULLIF(TRIM({$alias}.HELPDESK), '')";
+            }
+        } catch (\Throwable) {
+            $cols = [];
+        }
+
+        if ($cols === []) {
+            return "'-'";
+        }
+
+        return 'COALESCE(' . implode(', ', $cols) . ", '-')";
+    }
+
     private function baseQuery(array $filters)
     {
+        $t = $this->tranTable;
+
         $query = $this->db()
-            ->table('scctran')
-            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctran.CUSTID')
+            ->table("{$t} as t")
+            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 't.CUSTID')
             ->leftJoin('mst_kelas', DB::raw('CAST(mst_kelas.id AS CHAR)'), '=', DB::raw('TRIM(scctcust.CODE03)'))
             ->leftJoin('mst_sekolah', DB::raw('TRIM(mst_sekolah.CODE01)'), '=', DB::raw('TRIM(scctcust.CODE01)'))
-            ->where('scctran.DEBET', '>', 0)
+            ->where('t.DEBET', '>', 0)
             ->where(function ($q) {
-                // FIDBANK = CASH + DEBET > 0
-                $q->whereRaw('UPPER(TRIM(scctran.FIDBANK)) = ?', ['CASH'])
-                    // atau METODE CASHOUT tanpa FIDBANK
+                $q->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['CASH'])
                     ->orWhere(function ($q2) {
-                        $q2->whereRaw('UPPER(TRIM(scctran.METODE)) LIKE ?', ['%CASHOUT%'])
+                        $q2->whereRaw('UPPER(TRIM(t.METODE)) LIKE ?', ['%CASHOUT%'])
                             ->where(function ($q3) {
-                                $q3->whereNull('scctran.FIDBANK')
-                                    ->orWhereRaw("TRIM(COALESCE(scctran.FIDBANK, '')) = ''");
+                                $q3->whereNull('t.FIDBANK')
+                                    ->orWhereRaw("TRIM(COALESCE(t.FIDBANK, '')) = ''");
                             });
                     });
             });
@@ -98,7 +172,7 @@ class HistoryRekapCashoutController extends Controller
     private function applyFilters($query, array $filters): void
     {
         if ($filters['periode_cutoff'] !== '') {
-            $query->whereRaw('TRIM(scctran.NOREFF) = ?', [$filters['periode_cutoff']]);
+            $query->whereRaw('TRIM(t.NOREFF) = ?', [$filters['periode_cutoff']]);
         }
 
         if ($filters['nis'] !== '') {
@@ -130,14 +204,14 @@ class HistoryRekapCashoutController extends Controller
         if ($filters['dari_tanggal'] !== '') {
             $from = $this->parseDate($filters['dari_tanggal']);
             if ($from) {
-                $query->where('scctran.TRXDATE', '>=', $from->startOfDay());
+                $query->where('t.TRXDATE', '>=', $from->startOfDay());
             }
         }
 
         if ($filters['sampai_tanggal'] !== '') {
             $to = $this->parseDate($filters['sampai_tanggal']);
             if ($to) {
-                $query->where('scctran.TRXDATE', '<=', $to->endOfDay());
+                $query->where('t.TRXDATE', '<=', $to->endOfDay());
             }
         }
     }
@@ -173,57 +247,86 @@ class HistoryRekapCashoutController extends Controller
 
     private function fetchRows(array $filters): LengthAwarePaginator
     {
-        $saldoSub = '(SELECT COALESCE(SUM(s2.KREDIT), 0) - COALESCE(SUM(s2.DEBET), 0)
-            FROM scctran s2
-            WHERE s2.CUSTID = scctran.CUSTID
-              AND (
-                    s2.TRXDATE < scctran.TRXDATE
-                    OR (s2.TRXDATE = scctran.TRXDATE AND s2.urut <= scctran.urut)
-              )
-        )';
+        $userExpr = $this->userColumnExpr('t');
 
-        return $this->baseQuery($filters)
+        $paginator = $this->baseQuery($filters)
             ->select([
-                'scctran.urut',
-                'scctran.CUSTID',
-                'scctran.TRXDATE',
-                'scctran.DEBET',
-                'scctran.TRANSNO',
-                'scctran.NOREFF',
-                'scctran.METODE',
-                'scctran.FIDBANK',
-                'scctran.MERCH',
+                't.urut',
+                't.CUSTID',
+                't.TRXDATE',
+                't.DEBET',
+                't.TRANSNO',
+                't.NOREFF',
+                't.METODE',
+                't.FIDBANK',
                 'scctcust.NMCUST as nama',
                 'scctcust.NOCUST as nis',
                 DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.kelas), ''), NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), NULLIF(TRIM(scctcust.DESC04), ''), '-') as kelas"),
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
                 DB::raw("COALESCE(NULLIF(TRIM(mst_sekolah.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
-                DB::raw("COALESCE(NULLIF(TRIM(scctran.TRANSNO), ''), '') as no_transaksi"),
-                DB::raw("COALESCE(NULLIF(TRIM(scctran.MERCH), ''), '-') as user_name"),
-                DB::raw("{$saldoSub} as saldo"),
+                DB::raw("COALESCE(NULLIF(TRIM(t.TRANSNO), ''), '') as no_transaksi"),
+                DB::raw("{$userExpr} as user_name"),
             ])
             ->orderByRaw("COALESCE(NULLIF(scctcust.NOCUST, '-'), scctcust.NUM2ND, '') ASC")
-            ->orderBy('scctran.TRXDATE')
-            ->orderBy('scctran.urut')
+            ->orderBy('t.TRXDATE')
+            ->orderBy('t.urut')
             ->paginate(self::PER_PAGE)
-            ->withQueryString()
-            ->through(function ($row) {
-                $user = trim((string) ($row->user_name ?? ''));
-                if ($user !== '' && $user !== '-' && preg_match('/User:\s*([^\s|]+)/i', $user, $m)) {
-                    $user = trim($m[1]);
-                }
-                $row->user_name = $user !== '' ? $user : '-';
-                $row->no_transaksi = trim((string) ($row->no_transaksi ?? '')) ?: '-';
+            ->withQueryString();
 
-                return $row;
-            });
+        $saldoMap = $this->fetchSaldoMap(
+            collect($paginator->items())
+                ->pluck('CUSTID')
+                ->map(static fn ($id) => (int) $id)
+                ->filter(static fn ($id) => $id > 0)
+                ->unique()
+                ->values()
+                ->all()
+        );
+
+        return $paginator->through(function ($row) use ($saldoMap) {
+            $user = trim((string) ($row->user_name ?? ''));
+            if ($user !== '' && $user !== '-' && preg_match('/User:\s*([^\s|]+)/i', $user, $m)) {
+                $user = trim($m[1]);
+            }
+            $row->user_name = $user !== '' ? $user : '-';
+            $row->no_transaksi = trim((string) ($row->no_transaksi ?? '')) ?: '-';
+            $row->saldo = $saldoMap[(int) ($row->CUSTID ?? 0)] ?? 0;
+
+            return $row;
+        });
+    }
+
+    /** @param list<int> $custIds */
+    private function fetchSaldoMap(array $custIds): array
+    {
+        if ($custIds === []) {
+            return [];
+        }
+
+        $t = $this->tranTable;
+
+        $rows = $this->db()
+            ->table($t)
+            ->selectRaw('CUSTID, CAST(COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) AS SIGNED) as saldo')
+            ->whereIn('CUSTID', $custIds)
+            ->groupBy('CUSTID')
+            ->get();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int) $row->CUSTID] = (int) ($row->saldo ?? 0);
+        }
+
+        return $map;
     }
 
     private function fetchCutoffOptions(): array
     {
         try {
+            $t = $this->tranTable;
+
             return $this->db()
-                ->table('scctran')
+                ->table($t)
                 ->where('DEBET', '>', 0)
                 ->where(function ($q) {
                     $q->whereRaw('UPPER(TRIM(FIDBANK)) = ?', ['CASH'])

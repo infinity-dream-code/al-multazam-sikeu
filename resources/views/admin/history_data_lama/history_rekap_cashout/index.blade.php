@@ -96,6 +96,9 @@
                 <small class="text-muted">{{ number_format($rows->total()) }} data</small>
             @endif
         </div>
+        @if (!empty($errorMessage))
+            <div class="alert alert-danger m-3 mb-0">{{ $errorMessage }}</div>
+        @endif
         <div class="table-responsive">
             <table class="table table-sm table-bordered table-hover mb-0">
                 <thead class="table-light">
