@@ -134,28 +134,30 @@ class HistoryRekapCashoutController extends Controller
     {
         $t = $this->tranTable;
 
+        // Pre-agregasi 1x (bukan correlated subquery per baris) — buang duplikat ExeByEXL
+        $exlKeep = $this->db()
+            ->table("{$t} as d")
+            ->selectRaw('d.CUSTID, d.DEBET, DATE(d.TRXDATE) as trx_day, MAX(d.urut) as max_urut')
+            ->where('d.DEBET', '>', 0)
+            ->whereRaw("UPPER(TRIM(d.FIDBANK)) = 'CASH'")
+            ->whereRaw("UPPER(TRIM(COALESCE(d.NOREFF, ''))) = 'EXEBYEXL'")
+            ->groupByRaw('d.CUSTID, d.DEBET, DATE(d.TRXDATE)');
+
         $query = $this->db()
             ->table("{$t} as t")
             ->join('scctcust', 'scctcust.CUSTID', '=', 't.CUSTID')
             ->leftJoin('mst_kelas', DB::raw('CAST(mst_kelas.id AS CHAR)'), '=', DB::raw('TRIM(scctcust.CODE03)'))
+            ->leftJoinSub($exlKeep, 'exl_keep', function ($join) {
+                $join->on('exl_keep.CUSTID', '=', 't.CUSTID')
+                    ->on('exl_keep.DEBET', '=', 't.DEBET')
+                    ->whereRaw('exl_keep.trx_day = DATE(t.TRXDATE)');
+            })
             ->where('t.DEBET', '>', 0)
-            // Samakan builder: hanya FIDBANK = CASH
-            ->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['CASH'])
-            // Duplikat import Excel (NOREFF=ExeByEXL): ambil urut terbaru per siswa+hari+nominal
-            ->whereRaw(
-                "NOT (
-                    UPPER(TRIM(COALESCE(t.NOREFF, ''))) = 'EXEBYEXL'
-                    AND t.urut < (
-                        SELECT MAX(t2.urut)
-                        FROM {$t} AS t2
-                        WHERE t2.CUSTID = t.CUSTID
-                          AND t2.DEBET = t.DEBET
-                          AND DATE(t2.TRXDATE) = DATE(t.TRXDATE)
-                          AND UPPER(TRIM(t2.FIDBANK)) = 'CASH'
-                          AND UPPER(TRIM(COALESCE(t2.NOREFF, ''))) = 'EXEBYEXL'
-                    )
-                )"
-            );
+            ->whereRaw("UPPER(TRIM(t.FIDBANK)) = 'CASH'")
+            ->where(function ($q) {
+                $q->whereRaw("UPPER(TRIM(COALESCE(t.NOREFF, ''))) <> 'EXEBYEXL'")
+                    ->orWhereColumn('t.urut', 'exl_keep.max_urut');
+            });
 
         $this->applySchoolScope($query);
         $this->applyFilters($query, $filters);
