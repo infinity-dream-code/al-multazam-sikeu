@@ -136,11 +136,10 @@ class HistoryRekapCashoutController extends Controller
 
         $query = $this->db()
             ->table("{$t} as t")
-            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 't.CUSTID')
+            ->join('scctcust', 'scctcust.CUSTID', '=', 't.CUSTID')
             ->leftJoin('mst_kelas', DB::raw('CAST(mst_kelas.id AS CHAR)'), '=', DB::raw('TRIM(scctcust.CODE03)'))
-            ->leftJoin('mst_sekolah', DB::raw('TRIM(mst_sekolah.CODE01)'), '=', DB::raw('TRIM(scctcust.CODE01)'))
             ->where('t.DEBET', '>', 0)
-            // Samakan builder / Rekap Keluar Uang Saku: hanya FIDBANK = CASH
+            // Samakan builder: hanya FIDBANK = CASH
             ->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['CASH']);
 
         $this->applySchoolScope($query);
@@ -292,9 +291,11 @@ class HistoryRekapCashoutController extends Controller
                 'scctcust.NOCUST as nis',
                 DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.kelas), ''), NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), NULLIF(TRIM(scctcust.DESC04), ''), '-') as kelas"),
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
-                DB::raw("COALESCE(NULLIF(TRIM(mst_sekolah.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
+                DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
                 DB::raw("COALESCE(NULLIF(TRIM(t.TRANSNO), ''), '') as no_transaksi"),
                 DB::raw("{$userExpr} as user_name"),
+                DB::raw("COALESCE(NULLIF(TRIM(t.METODE), ''), '-') as metode_label"),
+                DB::raw("COALESCE(NULLIF(TRIM(t.FIDBANK), ''), '-') as fidbank_label"),
             ])
             ->orderByRaw("COALESCE(NULLIF(scctcust.NOCUST, '-'), scctcust.NUM2ND, '') ASC")
             ->orderBy('t.TRXDATE')
@@ -393,11 +394,7 @@ class HistoryRekapCashoutController extends Controller
             return strcmp($rb, $ra);
         });
 
-        $options[] = (object) [
-            'value' => 'sccttran',
-            'label' => 'Data Aktif (sccttran)',
-        ];
-
+        // Hanya arsip cutoff — jangan tampilkan opsi Data Aktif (sccttran)
         return $options;
     }
 

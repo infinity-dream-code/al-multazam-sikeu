@@ -111,6 +111,8 @@
                     <th>Lokasi</th>
                     <th>Nama</th>
                     <th>Tgl Transaksi</th>
+                    <th>Metode</th>
+                    <th>FIDBANK</th>
                     <th class="text-end">Debet</th>
                     <th class="text-end">Saldo</th>
                     <th>No Transaksi</th>
@@ -131,6 +133,8 @@
                                 —
                             @endif
                         </td>
+                        <td>{{ $row->metode_label ?? ($row->METODE ?? '—') }}</td>
+                        <td>{{ $row->fidbank_label ?? ($row->FIDBANK ?? '—') }}</td>
                         <td class="text-end">{{ number_format((int) ($row->DEBET ?? 0), 0, ',', '.') }}</td>
                         <td class="text-end">{{ number_format((int) ($row->saldo ?? 0), 0, ',', '.') }}</td>
                         <td>{{ $row->no_transaksi ?? '—' }}</td>
@@ -138,7 +142,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">
+                        <td colspan="11" class="text-center text-muted py-4">
                             @if ($isSearch ?? false)
                                 Tidak ada data cashout yang sesuai kriteria.
                             @else
