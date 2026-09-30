@@ -24,11 +24,17 @@
                     <div class="col-md-3">
                         <label class="form-label">Periode Cutoff</label>
                         <select class="form-select" name="periode_cutoff">
-                            <option value="">Semua</option>
                             @foreach ($cutoffOptions as $opt)
-                                <option value="{{ $opt }}" @selected(($filters['periode_cutoff'] ?? '') === $opt)>{{ $opt }}</option>
+                                @php
+                                    $val = is_object($opt) ? ($opt->value ?? '') : (string) $opt;
+                                    $lbl = is_object($opt) ? ($opt->label ?? $val) : (string) $opt;
+                                @endphp
+                                <option value="{{ $val }}" @selected(($filters['periode_cutoff'] ?? '') === $val)>{{ $lbl }}</option>
                             @endforeach
                         </select>
+                        @if (!empty($activeTable))
+                            <small class="text-muted">Tabel: {{ $activeTable }}</small>
+                        @endif
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Tahun Angkatan</label>

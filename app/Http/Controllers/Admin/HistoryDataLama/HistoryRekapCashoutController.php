@@ -18,11 +18,11 @@ class HistoryRekapCashoutController extends Controller
 
     private string $title = 'History Data Lama';
     private string $mainTitle = 'History Rekap Cashout';
-    private string $tranTable = 'scctran';
+    private string $tranTable = 'sccttran';
 
     public function index(Request $request): View
     {
-        $this->tranTable = $this->resolveTranTable();
+        $cutoffOptions = $this->fetchCutoffOptions();
 
         $isSearch = $request->boolean('search');
         $filters = [
@@ -35,47 +35,45 @@ class HistoryRekapCashoutController extends Controller
             'sampai_tanggal' => trim((string) $request->query('sampai_tanggal', '')),
         ];
 
+        // Default ke arsip cutoff terbaru (bukan sccttran aktif)
+        if ($filters['periode_cutoff'] === '' && !empty($cutoffOptions)) {
+            $filters['periode_cutoff'] = (string) ($cutoffOptions[0]->value ?? 'sccttran');
+        }
+
+        $this->tranTable = $this->resolveTranTable($filters['periode_cutoff']);
+
         $rows = new LengthAwarePaginator([], 0, self::PER_PAGE, 1, [
             'path' => $request->url(),
             'query' => $request->query(),
         ]);
 
-        if ($isSearch) {
-            try {
-                $rows = $this->fetchRows($filters);
-            } catch (\Throwable $e) {
-                Log::error('HistoryRekapCashout fetchRows failed', [
-                    'message' => $e->getMessage(),
-                    'table' => $this->tranTable,
-                ]);
-                report($e);
-
-                return view('admin.history_data_lama.history_rekap_cashout.index', [
-                    'title' => $this->title,
-                    'mainTitle' => $this->mainTitle,
-                    'dataTitle' => 'History Rekap Keluar Uang Saku Data Cutoff',
-                    'filters' => $filters,
-                    'isSearch' => true,
-                    'rows' => $rows,
-                    'cutoffOptions' => $this->fetchCutoffOptions(),
-                    'thnAka' => $this->fetchThnAka(),
-                    'kelasOptions' => $this->fetchKelasOptions(),
-                    'errorMessage' => 'Gagal memuat data: ' . $e->getMessage(),
-                ]);
-            }
-        }
-
-        return view('admin.history_data_lama.history_rekap_cashout.index', [
+        $viewData = [
             'title' => $this->title,
             'mainTitle' => $this->mainTitle,
             'dataTitle' => 'History Rekap Keluar Uang Saku Data Cutoff',
             'filters' => $filters,
             'isSearch' => $isSearch,
             'rows' => $rows,
-            'cutoffOptions' => $this->fetchCutoffOptions(),
+            'cutoffOptions' => $cutoffOptions,
             'thnAka' => $this->fetchThnAka(),
             'kelasOptions' => $this->fetchKelasOptions(),
-        ]);
+            'activeTable' => $this->tranTable,
+        ];
+
+        if ($isSearch) {
+            try {
+                $viewData['rows'] = $this->fetchRows($filters);
+            } catch (\Throwable $e) {
+                Log::error('HistoryRekapCashout fetchRows failed', [
+                    'message' => $e->getMessage(),
+                    'table' => $this->tranTable,
+                ]);
+                report($e);
+                $viewData['errorMessage'] = 'Gagal memuat data [' . $this->tranTable . ']: ' . $e->getMessage();
+            }
+        }
+
+        return view('admin.history_data_lama.history_rekap_cashout.index', $viewData);
     }
 
     private function db()
@@ -83,26 +81,29 @@ class HistoryRekapCashoutController extends Controller
         return DB::connection('DATA_MYSQL');
     }
 
-    private function resolveTranTable(): string
+    /**
+     * Periode cutoff = nama tabel arsip, contoh sccttran_29122025.
+     */
+    private function resolveTranTable(string $periodeCutoff): string
     {
-        // History cashout Al-Multazam: sumber utamanya scctran (data lama)
+        $periodeCutoff = trim($periodeCutoff);
+        if ($periodeCutoff === '' || $periodeCutoff === 'sccttran') {
+            return 'sccttran';
+        }
+
+        if (!preg_match('/^sccttran_\d{8}$/', $periodeCutoff)) {
+            return 'sccttran';
+        }
+
         try {
-            if (Schema::connection('DATA_MYSQL')->hasTable('scctran')) {
-                return 'scctran';
+            if (Schema::connection('DATA_MYSQL')->hasTable($periodeCutoff)) {
+                return $periodeCutoff;
             }
         } catch (\Throwable) {
             // ignore
         }
 
-        try {
-            if (Schema::connection('DATA_MYSQL')->hasTable('sccttran')) {
-                return 'sccttran';
-            }
-        } catch (\Throwable) {
-            // ignore
-        }
-
-        return 'scctran';
+        return 'sccttran';
     }
 
     private function userColumnExpr(string $alias): string
@@ -110,17 +111,16 @@ class HistoryRekapCashoutController extends Controller
         $cols = [];
         try {
             $schema = Schema::connection('DATA_MYSQL');
-            if ($schema->hasColumn($this->tranTable, 'MERCH')) {
-                $cols[] = "NULLIF(TRIM({$alias}.MERCH), '')";
-            }
             if ($schema->hasColumn($this->tranTable, 'MERCHANT')) {
                 $cols[] = "NULLIF(TRIM({$alias}.MERCHANT), '')";
+            } elseif ($schema->hasColumn($this->tranTable, 'MERCH')) {
+                $cols[] = "NULLIF(TRIM({$alias}.MERCH), '')";
             }
             if ($schema->hasColumn($this->tranTable, 'HELPDESK')) {
                 $cols[] = "NULLIF(TRIM({$alias}.HELPDESK), '')";
             }
         } catch (\Throwable) {
-            $cols = [];
+            $cols[] = "NULLIF(TRIM({$alias}.MERCHANT), '')";
         }
 
         if ($cols === []) {
@@ -141,13 +141,17 @@ class HistoryRekapCashoutController extends Controller
             ->leftJoin('mst_sekolah', DB::raw('TRIM(mst_sekolah.CODE01)'), '=', DB::raw('TRIM(scctcust.CODE01)'))
             ->where('t.DEBET', '>', 0)
             ->where(function ($q) {
+                // FIDBANK = CASH
                 $q->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['CASH'])
+                    // atau METODE CASHOUT / FROM SALDO tanpa FIDBANK
                     ->orWhere(function ($q2) {
-                        $q2->whereRaw('UPPER(TRIM(t.METODE)) LIKE ?', ['%CASHOUT%'])
-                            ->where(function ($q3) {
-                                $q3->whereNull('t.FIDBANK')
-                                    ->orWhereRaw("TRIM(COALESCE(t.FIDBANK, '')) = ''");
-                            });
+                        $q2->where(function ($qMetode) {
+                            $qMetode->whereRaw('UPPER(TRIM(t.METODE)) LIKE ?', ['%CASHOUT%'])
+                                ->orWhereRaw('UPPER(TRIM(t.METODE)) LIKE ?', ['%FROM SALDO%']);
+                        })->where(function ($q3) {
+                            $q3->whereNull('t.FIDBANK')
+                                ->orWhereRaw("TRIM(COALESCE(t.FIDBANK, '')) = ''");
+                        });
                     });
             });
 
@@ -172,9 +176,7 @@ class HistoryRekapCashoutController extends Controller
 
     private function applyFilters($query, array $filters): void
     {
-        if ($filters['periode_cutoff'] !== '') {
-            $query->whereRaw('TRIM(t.NOREFF) = ?', [$filters['periode_cutoff']]);
-        }
+        // periode_cutoff dipakai untuk pilih TABEL arsip, bukan filter NOREFF
 
         if ($filters['nis'] !== '') {
             $query->where(function ($q) use ($filters) {
@@ -233,7 +235,6 @@ class HistoryRekapCashoutController extends Controller
                 return;
             }
 
-            // Cocokkan per kata (AND). "farel" juga dicoba sebagai "farrel".
             $q->orWhere(function ($q2) use ($words) {
                 foreach ($words as $word) {
                     if (mb_strlen($word) < 2) {
@@ -242,9 +243,7 @@ class HistoryRekapCashoutController extends Controller
 
                     $variants = array_values(array_unique(array_filter([
                         $word,
-                        // farel -> farrel (r tunggal di depan vokal jadi rr)
                         preg_replace('/r([aeiou])/u', 'rr$1', $word),
-                        // farrel -> farel
                         preg_replace('/rr([aeiou])/u', 'r$1', $word),
                     ])));
 
@@ -362,37 +361,56 @@ class HistoryRekapCashoutController extends Controller
         return $map;
     }
 
+    /**
+     * @return list<object{value: string, label: string}>
+     */
     private function fetchCutoffOptions(): array
     {
-        try {
-            $t = $this->tranTable;
+        $options = [];
 
-            return $this->db()
-                ->table($t)
-                ->where('DEBET', '>', 0)
-                ->where(function ($q) {
-                    $q->whereRaw('UPPER(TRIM(FIDBANK)) = ?', ['CASH'])
-                        ->orWhere(function ($q2) {
-                            $q2->whereRaw('UPPER(TRIM(METODE)) LIKE ?', ['%CASHOUT%'])
-                                ->where(function ($q3) {
-                                    $q3->whereNull('FIDBANK')
-                                        ->orWhereRaw("TRIM(COALESCE(FIDBANK, '')) = ''");
-                                });
-                        });
-                })
-                ->whereNotNull('NOREFF')
-                ->whereRaw("TRIM(NOREFF) != ''")
-                ->distinct()
-                ->orderByDesc('NOREFF')
-                ->limit(200)
-                ->pluck('NOREFF')
-                ->map(static fn ($v) => trim((string) $v))
-                ->filter()
-                ->values()
-                ->all();
+        try {
+            $rows = $this->db()->select("SHOW TABLES LIKE 'sccttran\\_%'");
+            foreach ($rows as $row) {
+                $table = (string) (array_values((array) $row)[0] ?? '');
+                if (!preg_match('/^sccttran_(\d{2})(\d{2})(\d{4})$/', $table, $m)) {
+                    continue;
+                }
+
+                $label = $table;
+                try {
+                    $label = Carbon::createFromFormat('d-m-Y', $m[1] . '-' . $m[2] . '-' . $m[3])
+                        ->locale('en')
+                        ->format('d-F-Y');
+                } catch (\Throwable) {
+                    // keep table name
+                }
+
+                $options[] = (object) [
+                    'value' => $table,
+                    'label' => $label,
+                ];
+            }
         } catch (\Throwable) {
-            return [];
+            // ignore
         }
+
+        // Terbaru dulu (nama tabel ddmmyyyy — sort by date desc)
+        usort($options, static function ($a, $b) {
+            $da = preg_match('/_(\d{8})$/', $a->value, $ma) ? $ma[1] : '';
+            $db = preg_match('/_(\d{8})$/', $b->value, $mb) ? $mb[1] : '';
+            // ddmmyyyy → yyyymmdd for compare
+            $ra = $da !== '' ? (substr($da, 4, 4) . substr($da, 2, 2) . substr($da, 0, 2)) : '';
+            $rb = $db !== '' ? (substr($db, 4, 4) . substr($db, 2, 2) . substr($db, 0, 2)) : '';
+
+            return strcmp($rb, $ra);
+        });
+
+        $options[] = (object) [
+            'value' => 'sccttran',
+            'label' => 'Data Aktif (sccttran)',
+        ];
+
+        return $options;
     }
 
     private function fetchThnAka(): array
