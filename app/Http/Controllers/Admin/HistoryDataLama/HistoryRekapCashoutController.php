@@ -344,8 +344,8 @@ class HistoryRekapCashoutController extends Controller
                     ) as no_transaksi"),
                 // User builder = Teller (scctcashout)
                 DB::raw($hasCashout
-                    ? "COALESCE(NULLIF(TRIM(co.Teller), ''), '-')"
-                    : "'-'") . ' as user_name',
+                    ? "COALESCE(NULLIF(TRIM(co.Teller), ''), '-') as user_name"
+                    : "'-' as user_name"),
             ])
             ->orderByRaw("COALESCE(NULLIF(scctcust.NOCUST, '-'), scctcust.NUM2ND, '') ASC")
             ->orderBy('t.TRXDATE')
