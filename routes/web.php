@@ -178,6 +178,36 @@ Route::prefix("admin")
                     });
             });
 
+        Route::prefix("smartcard")
+            ->name("smartcard.")
+            ->group(function () {
+                $pages = [
+                    'saldo-virtual-account',
+                    'data-kartu-siswa',
+                    'setting-blokir-kartu',
+                    'setting-batasan-saku',
+                    'transaksi-belanja',
+                    'pencairan-kantin',
+                    'rekap-topup',
+                    'tap-ritel',
+                    'tap-laundry',
+                    'tap-perpus',
+                    'topup-saldo',
+                    'migrasi-saldo-awal',
+                    'debit-saldo-excel',
+                    'debit-saldo',
+                    'setting-merchant-mobile',
+                    'keluar-uang-saku',
+                    'cek-batas-jajan',
+                ];
+
+                foreach ($pages as $page) {
+                    Route::get($page, [\App\Http\Controllers\Admin\Smartcard\SmartcardPlaceholderController::class, 'index'])
+                        ->defaults('page', $page)
+                        ->name($page . '.index');
+                }
+            });
+
         Route::prefix("keuangan")->name("keuangan.")->group(function () {
             Route::controller(\App\Http\Controllers\Admin\Keuangan\ManualPembayaranController::class)
                 ->prefix("manual-pembayaran")->name("manual-pembayaran.")->group(function () {

@@ -99,6 +99,100 @@
             </ul>
         </li>
 
+        <li class="menu-item {{ Request::is(['admin/smartcard*']) ? 'active open' : '' }}">
+            <a href="javascript:void(0);" class="menu-link menu-toggle">
+                <i class="menu-icon ri ri-bank-card-line"></i>
+                <div data-i18n="smartCARD">smartCARD</div>
+            </a>
+            <ul class="menu-sub">
+                <li class="menu-item {{ Request::is(['admin/smartcard/saldo-virtual-account*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.saldo-virtual-account.index') }}" class="menu-link">
+                        <div>Saldo Virtual Account</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/data-kartu-siswa*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.data-kartu-siswa.index') }}" class="menu-link">
+                        <div>Data Kartu Siswa</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/setting-blokir-kartu*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.setting-blokir-kartu.index') }}" class="menu-link">
+                        <div>Setting Blokir Kartu</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/setting-batasan-saku*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.setting-batasan-saku.index') }}" class="menu-link">
+                        <div>Setting Batasan Saku</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/transaksi-belanja*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.transaksi-belanja.index') }}" class="menu-link">
+                        <div>Transaksi Belanja</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/pencairan-kantin*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.pencairan-kantin.index') }}" class="menu-link">
+                        <div>Pencairan Kantin</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/rekap-topup*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.rekap-topup.index') }}" class="menu-link">
+                        <div>Rekap TOPUP</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/tap-ritel*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.tap-ritel.index') }}" class="menu-link">
+                        <div>TAP RITEL</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/tap-laundry*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.tap-laundry.index') }}" class="menu-link">
+                        <div>TAP LAUNDRY</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/tap-perpus*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.tap-perpus.index') }}" class="menu-link">
+                        <div>TAP PERPUS</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/topup-saldo*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.topup-saldo.index') }}" class="menu-link">
+                        <div>TOP UP Saldo</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/migrasi-saldo-awal*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.migrasi-saldo-awal.index') }}" class="menu-link">
+                        <div>Migrasi Saldo Awal</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/debit-saldo-excel*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.debit-saldo-excel.index') }}" class="menu-link">
+                        <div>Debit Saldo Excel</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/debit-saldo*']) && !Request::is(['admin/smartcard/debit-saldo-excel*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.debit-saldo.index') }}" class="menu-link">
+                        <div>Debit Saldo</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/setting-merchant-mobile*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.setting-merchant-mobile.index') }}" class="menu-link">
+                        <div>Setting Merchant Mobile</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/keluar-uang-saku*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.keluar-uang-saku.index') }}" class="menu-link">
+                        <div>Keluar Uang Saku</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ Request::is(['admin/smartcard/cek-batas-jajan*']) ? 'active' : '' }}">
+                    <a href="{{ route('admin.smartcard.cek-batas-jajan.index') }}" class="menu-link">
+                        <div>CEK Batas Jajan</div>
+                    </a>
+                </li>
+            </ul>
+        </li>
+
         <li class="menu-item mt-auto pb-2">
             <a href="{{route('logout')}}" class="menu-link btn-danger text-white" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                 <i class="menu-icon ri ri-logout-box-r-line"></i>
