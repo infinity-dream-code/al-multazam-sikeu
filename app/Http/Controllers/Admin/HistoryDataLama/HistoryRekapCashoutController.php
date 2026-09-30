@@ -108,19 +108,20 @@ class HistoryRekapCashoutController extends Controller
 
     private function userColumnExpr(string $alias): string
     {
+        // Builder kolom User = HELPDESK (cashless/admkeu/hehe), fallback MERCHANT
         $cols = [];
         try {
             $schema = Schema::connection('DATA_MYSQL');
+            if ($schema->hasColumn($this->tranTable, 'HELPDESK')) {
+                $cols[] = "NULLIF(TRIM({$alias}.HELPDESK), '')";
+            }
             if ($schema->hasColumn($this->tranTable, 'MERCHANT')) {
                 $cols[] = "NULLIF(TRIM({$alias}.MERCHANT), '')";
             } elseif ($schema->hasColumn($this->tranTable, 'MERCH')) {
                 $cols[] = "NULLIF(TRIM({$alias}.MERCH), '')";
             }
-            if ($schema->hasColumn($this->tranTable, 'HELPDESK')) {
-                $cols[] = "NULLIF(TRIM({$alias}.HELPDESK), '')";
-            }
         } catch (\Throwable) {
-            $cols[] = "NULLIF(TRIM({$alias}.MERCHANT), '')";
+            $cols[] = "NULLIF(TRIM({$alias}.HELPDESK), '')";
         }
 
         if ($cols === []) {
@@ -309,7 +310,15 @@ class HistoryRekapCashoutController extends Controller
                 DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.kelas), ''), NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), NULLIF(TRIM(scctcust.DESC04), ''), '-') as kelas"),
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
-                DB::raw("COALESCE(NULLIF(TRIM(t.TRANSNO), ''), '') as no_transaksi"),
+                // Builder: No Transaksi = TRANSNO, kalau kosong pakai NOREFF (abaikan ExeByEXL)
+                DB::raw("COALESCE(
+                    NULLIF(TRIM(t.TRANSNO), ''),
+                    CASE
+                        WHEN UPPER(TRIM(COALESCE(t.NOREFF, ''))) = 'EXEBYEXL' THEN NULL
+                        ELSE NULLIF(TRIM(t.NOREFF), '')
+                    END,
+                    ''
+                ) as no_transaksi"),
                 DB::raw("{$userExpr} as user_name"),
             ])
             ->orderByRaw("COALESCE(NULLIF(scctcust.NOCUST, '-'), scctcust.NUM2ND, '') ASC")
