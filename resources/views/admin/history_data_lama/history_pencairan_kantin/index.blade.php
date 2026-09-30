@@ -23,60 +23,47 @@
     @endif
 
     <div class="card mb-4">
-        <div class="card-header"><h5 class="mb-0">Data Pencairan Belanja ke Kantin</h5></div>
+        <div class="card-header"><h5 class="mb-0">History Data Pencairan Belanja ke Kantin</h5></div>
         <div class="card-body">
-            <div class="row g-4">
-                <div class="col-md-6">
-                    <form method="GET" action="{{ route('admin.history-data-lama.history-pencairan-kantin.index') }}" id="rpFormGet">
-                        <input type="hidden" name="nama_penerima" value="{{ $namaPenerima ?? '' }}">
-                        <input type="hidden" name="nominal" value="{{ $nominal ?? '' }}">
-                        <div class="mb-3">
-                            <label class="form-label" for="kdMercan">Merchant</label>
-                            <select class="form-select" id="kdMercan" name="kd_mercan">
-                                <option value="">Pilih Merchant</option>
-                                @foreach ($mercanOptions as $m)
-                                    <option value="{{ $m->kode }}" @selected(($kdMercan ?? '') === $m->kode)>{{ $m->nama }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="dariTanggal">Dari Tanggal</label>
-                            <input type="date" class="form-control" id="dariTanggal" name="dari_tanggal" value="{{ $dariTanggal ?? '' }}">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="sampaiTanggal">Sampai Tanggal</label>
-                            <input type="date" class="form-control" id="sampaiTanggal" name="sampai_tanggal" value="{{ $sampaiTanggal ?? '' }}">
-                        </div>
+            <form method="GET" action="{{ route('admin.history-data-lama.history-pencairan-kantin.index') }}" id="rpFormGet">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label" for="kdMercan">Merchant</label>
+                        <select class="form-select" id="kdMercan" name="kd_mercan">
+                            <option value="">Pilih Merchant</option>
+                            @foreach ($mercanOptions as $m)
+                                <option value="{{ $m->kode }}" @selected(($kdMercan ?? '') === $m->kode)>{{ $m->nama }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="dariTanggal">Dari Tanggal</label>
+                        <input type="date" class="form-control" id="dariTanggal" name="dari_tanggal" value="{{ $dariTanggal ?? '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="sampaiTanggal">Sampai Tanggal</label>
+                        <input type="date" class="form-control" id="sampaiTanggal" name="sampai_tanggal" value="{{ $sampaiTanggal ?? '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="namaPenerima">Nama Penerima</label>
+                        <input type="text" class="form-control" id="namaPenerima" name="nama_penerima"
+                               value="{{ $namaPenerima ?? '' }}" placeholder="Nama penerima" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="nominal">Nominal</label>
+                        <input type="text" class="form-control" id="nominal" name="nominal"
+                               value="{{ $nominal !== '' ? $nominal : '0' }}" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">No Terima</label>
+                        <input type="text" class="form-control" value="{{ $previewNoTerima ?? '' }}" readonly>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end gap-2">
                         <button type="submit" name="cari_transaksi" value="1" class="btn btn-primary">Cari Transaksi</button>
-                    </form>
+                        <button type="submit" name="liat_pencairan" value="1" class="btn btn-outline-secondary">Liat Pencairan</button>
+                    </div>
                 </div>
-                <div class="col-md-6">
-                    <form method="POST" action="{{ route('admin.history-data-lama.history-pencairan-kantin.store') }}" id="rpFormSave">
-                        @csrf
-                        <input type="hidden" name="kd_mercan" id="kdMercanSave" value="{{ $kdMercan ?? '' }}">
-                        <input type="hidden" name="dari_tanggal" id="dariTanggalSave" value="{{ $dariTanggal ?? '' }}">
-                        <input type="hidden" name="sampai_tanggal" id="sampaiTanggalSave" value="{{ $sampaiTanggal ?? '' }}">
-                        <div class="mb-3">
-                            <label class="form-label" for="namaPenerima">Nama Penerima</label>
-                            <input type="text" class="form-control" id="namaPenerima" name="nama_penerima"
-                                   value="{{ old('nama_penerima', $namaPenerima ?? '') }}" placeholder="Nama penerima">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="nominal">Nominal</label>
-                            <input type="number" class="form-control" id="nominal" name="nominal"
-                                   value="{{ old('nominal', $nominal ?? '') }}" min="1" step="1" placeholder="0">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">No Terima</label>
-                            <input type="text" class="form-control" value="{{ $previewNoTerima ?? '' }}" readonly>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button type="button" id="btnLiatPencairan" class="btn btn-outline-secondary">Liat Pencairan</button>
-                            <button type="submit" class="btn btn-primary">Simpan</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -90,7 +77,6 @@
                         <tr>
                             <th>Tgl Transaksi</th>
                             <th class="text-end">Saldo</th>
-                            <th>Merchant</th>
                             <th>Kantin</th>
                         </tr>
                         </thead>
@@ -104,21 +90,20 @@
                                         @else — @endif
                                     </td>
                                     <td class="text-end">{{ number_format((float) ($row->saldo ?? 0), 0, ',', '.') }}</td>
-                                    <td>{{ $row->mercan ?? '—' }}</td>
                                     <td>{{ $row->kantin ?? '—' }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="4" class="text-center text-muted">Tidak ada transaksi pada periode ini.</td></tr>
+                                <tr><td colspan="3" class="text-center text-muted">Tidak ada transaksi pada periode ini.</td></tr>
                             @endforelse
                             @if (($transaksiRows ?? collect())->isNotEmpty())
                                 <tr class="table-light">
                                     <td><strong>Total</strong></td>
                                     <td class="text-end"><strong>{{ number_format((float) ($transaksiTotal ?? 0), 0, ',', '.') }}</strong></td>
-                                    <td colspan="2"></td>
+                                    <td></td>
                                 </tr>
                             @endif
                         @else
-                            <tr><td colspan="4" class="text-center text-muted">Pilih merchant & tanggal, lalu klik Cari Transaksi.</td></tr>
+                            <tr><td colspan="3" class="text-center text-muted">Pilih merchant & tanggal, lalu klik Cari Transaksi.</td></tr>
                         @endif
                         </tbody>
                     </table>
@@ -134,6 +119,8 @@
                         <tr>
                             <th>Tgl Terima</th>
                             <th>Nama Penerima</th>
+                            <th class="text-end">Nominal</th>
+                            <th>No Terima</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -146,18 +133,21 @@
                                         @else — @endif
                                     </td>
                                     <td>{{ $row->nama_penerima ?? '—' }}</td>
+                                    <td class="text-end">{{ number_format((float) ($row->nominal ?? 0), 0, ',', '.') }}</td>
+                                    <td>{{ $row->no_terima ?? '—' }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="2" class="text-center text-muted">Belum ada data pencairan.</td></tr>
+                                <tr><td colspan="4" class="text-center text-muted">Belum ada data pencairan.</td></tr>
                             @endforelse
                             @if (($pencairanRows ?? collect())->isNotEmpty())
                                 <tr class="table-light">
-                                    <td><strong>Total</strong></td>
-                                    <td><strong>{{ number_format((float) ($pencairanTotal ?? 0), 0, ',', '.') }}</strong></td>
+                                    <td colspan="2"><strong>Total</strong></td>
+                                    <td class="text-end"><strong>{{ number_format((float) ($pencairanTotal ?? 0), 0, ',', '.') }}</strong></td>
+                                    <td></td>
                                 </tr>
                             @endif
                         @else
-                            <tr><td colspan="2" class="text-center text-muted">Klik Liat Pencairan untuk menampilkan data.</td></tr>
+                            <tr><td colspan="4" class="text-center text-muted">Klik Liat Pencairan untuk menampilkan data.</td></tr>
                         @endif
                         </tbody>
                     </table>
@@ -165,45 +155,4 @@
             </div>
         </div>
     </div>
-@endsection
-
-@section('script')
-    <script>
-        (function () {
-            const formGet = document.getElementById('rpFormGet');
-            const formSave = document.getElementById('rpFormSave');
-            const kdMercan = document.getElementById('kdMercan');
-            const dariTanggal = document.getElementById('dariTanggal');
-            const sampaiTanggal = document.getElementById('sampaiTanggal');
-            const namaPenerima = document.getElementById('namaPenerima');
-            const nominal = document.getElementById('nominal');
-            const btnLiat = document.getElementById('btnLiatPencairan');
-
-            const syncToSave = () => {
-                document.getElementById('kdMercanSave').value = kdMercan?.value || '';
-                document.getElementById('dariTanggalSave').value = dariTanggal?.value || '';
-                document.getElementById('sampaiTanggalSave').value = sampaiTanggal?.value || '';
-            };
-
-            const syncToGetHidden = () => {
-                const hNama = formGet?.querySelector('input[name="nama_penerima"]');
-                const hNom = formGet?.querySelector('input[name="nominal"]');
-                if (hNama) hNama.value = namaPenerima?.value || '';
-                if (hNom) hNom.value = nominal?.value || '';
-            };
-
-            formGet?.addEventListener('submit', () => syncToGetHidden());
-            formSave?.addEventListener('submit', () => syncToSave());
-
-            btnLiat?.addEventListener('click', () => {
-                syncToGetHidden();
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'liat_pencairan';
-                input.value = '1';
-                formGet.appendChild(input);
-                formGet.submit();
-            });
-        })();
-    </script>
 @endsection

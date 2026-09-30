@@ -155,6 +155,23 @@ class HistoryPencairanKantinController extends Controller
             ];
         };
 
+        // 0) Username dari data pencairan (sumber utama Al-Multazam)
+        try {
+            if (Schema::connection('DATA_MYSQL')->hasTable('sm_mercan_cair')) {
+                $rows = $db->table('sm_mercan_cair')
+                    ->whereNotNull('username')
+                    ->where('username', '!=', '')
+                    ->distinct()
+                    ->orderBy('username')
+                    ->pluck('username');
+                foreach ($rows as $u) {
+                    $push((string) $u, (string) $u);
+                }
+            }
+        } catch (\Throwable) {
+            // continue
+        }
+
         // 1) Master merchant
         try {
             if (Schema::connection('DATA_MYSQL')->hasTable('sm_mercan')) {
@@ -319,22 +336,22 @@ class HistoryPencairanKantinController extends Controller
             ->orderByDesc('TglTerima')
             ->orderByDesc('urut');
 
+        // Di Al-Multazam KDMERCAN sering NULL — kunci merchant = username
         if ($kdMercan !== '') {
-            $query->whereRaw('TRIM(KDMERCAN) = ?', [$kdMercan]);
+            $query->where(function ($q) use ($kdMercan) {
+                $q->whereRaw('TRIM(COALESCE(KDMERCAN, \'\')) = ?', [$kdMercan])
+                    ->orWhereRaw('TRIM(COALESCE(username, \'\')) = ?', [$kdMercan]);
+            });
         }
 
         $from = $this->parseDate($dari);
         $to = $this->parseDate($sampai);
-        if ($from && $to) {
-            $query->where(function ($q) use ($from, $to) {
-                $q->where(function ($q2) use ($from, $to) {
-                    $q2->where('dari_tgl_tran', '<=', $to->format('Y-m-d'))
-                        ->where('akhir_tgl_tran', '>=', $from->format('Y-m-d'));
-                })->orWhereBetween('TglTerima', [
-                    $from->copy()->startOfDay(),
-                    $to->copy()->endOfDay(),
-                ]);
-            });
+        // Prefer filter TglTerima (dari_tgl_tran / akhir_tgl_tran sering NULL di data lama)
+        if ($from) {
+            $query->where('TglTerima', '>=', $from->copy()->startOfDay());
+        }
+        if ($to) {
+            $query->where('TglTerima', '<=', $to->copy()->endOfDay());
         }
 
         $rows = $query
@@ -345,6 +362,8 @@ class HistoryPencairanKantinController extends Controller
                 'NoTerima as no_terima',
                 'dari_tgl_tran',
                 'akhir_tgl_tran',
+                'username',
+                'KDMERCAN',
             ])
             ->limit(self::MAX_ROWS)
             ->get();
