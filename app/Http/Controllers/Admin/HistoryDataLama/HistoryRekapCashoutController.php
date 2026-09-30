@@ -85,6 +85,7 @@ class HistoryRekapCashoutController extends Controller
 
     private function resolveTranTable(): string
     {
+        // History cashout Al-Multazam: sumber utamanya scctran (data lama)
         try {
             if (Schema::connection('DATA_MYSQL')->hasTable('scctran')) {
                 return 'scctran';
@@ -183,7 +184,7 @@ class HistoryRekapCashoutController extends Controller
         }
 
         if ($filters['nama'] !== '') {
-            $query->where('scctcust.NMCUST', 'like', '%' . $filters['nama'] . '%');
+            $this->applyNamaFilter($query, $filters['nama']);
         }
 
         if ($filters['thn_angkatan'] !== '') {
@@ -214,6 +215,47 @@ class HistoryRekapCashoutController extends Controller
                 $query->where('t.TRXDATE', '<=', $to->endOfDay());
             }
         }
+    }
+
+    private function applyNamaFilter($query, string $nama): void
+    {
+        $nama = trim(preg_replace('/\s+/u', ' ', $nama) ?? $nama);
+        if ($nama === '') {
+            return;
+        }
+
+        $words = preg_split('/\s+/u', mb_strtolower($nama), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        $query->where(function ($q) use ($nama, $words) {
+            $q->whereRaw('LOWER(scctcust.NMCUST) LIKE ?', ['%' . mb_strtolower($nama) . '%']);
+
+            if ($words === []) {
+                return;
+            }
+
+            // Cocokkan per kata (AND). "farel" juga dicoba sebagai "farrel".
+            $q->orWhere(function ($q2) use ($words) {
+                foreach ($words as $word) {
+                    if (mb_strlen($word) < 2) {
+                        continue;
+                    }
+
+                    $variants = array_values(array_unique(array_filter([
+                        $word,
+                        // farel -> farrel (r tunggal di depan vokal jadi rr)
+                        preg_replace('/r([aeiou])/u', 'rr$1', $word),
+                        // farrel -> farel
+                        preg_replace('/rr([aeiou])/u', 'r$1', $word),
+                    ])));
+
+                    $q2->where(function ($q3) use ($variants) {
+                        foreach ($variants as $variant) {
+                            $q3->orWhereRaw('LOWER(scctcust.NMCUST) LIKE ?', ['%' . $variant . '%']);
+                        }
+                    });
+                }
+            });
+        });
     }
 
     private function applyKelasFilter($query, string $kelasId): void
