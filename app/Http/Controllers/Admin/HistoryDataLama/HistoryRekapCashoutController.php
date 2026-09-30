@@ -140,7 +140,22 @@ class HistoryRekapCashoutController extends Controller
             ->leftJoin('mst_kelas', DB::raw('CAST(mst_kelas.id AS CHAR)'), '=', DB::raw('TRIM(scctcust.CODE03)'))
             ->where('t.DEBET', '>', 0)
             // Samakan builder: hanya FIDBANK = CASH
-            ->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['CASH']);
+            ->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['CASH'])
+            // Duplikat import Excel (NOREFF=ExeByEXL): ambil urut terbaru per siswa+hari+nominal
+            ->whereRaw(
+                "NOT (
+                    UPPER(TRIM(COALESCE(t.NOREFF, ''))) = 'EXEBYEXL'
+                    AND t.urut < (
+                        SELECT MAX(t2.urut)
+                        FROM {$t} AS t2
+                        WHERE t2.CUSTID = t.CUSTID
+                          AND t2.DEBET = t.DEBET
+                          AND DATE(t2.TRXDATE) = DATE(t.TRXDATE)
+                          AND UPPER(TRIM(t2.FIDBANK)) = 'CASH'
+                          AND UPPER(TRIM(COALESCE(t2.NOREFF, ''))) = 'EXEBYEXL'
+                    )
+                )"
+            );
 
         $this->applySchoolScope($query);
         $this->applyFilters($query, $filters);
@@ -294,8 +309,6 @@ class HistoryRekapCashoutController extends Controller
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
                 DB::raw("COALESCE(NULLIF(TRIM(t.TRANSNO), ''), '') as no_transaksi"),
                 DB::raw("{$userExpr} as user_name"),
-                DB::raw("COALESCE(NULLIF(TRIM(t.METODE), ''), '-') as metode_label"),
-                DB::raw("COALESCE(NULLIF(TRIM(t.FIDBANK), ''), '-') as fidbank_label"),
             ])
             ->orderByRaw("COALESCE(NULLIF(scctcust.NOCUST, '-'), scctcust.NUM2ND, '') ASC")
             ->orderBy('t.TRXDATE')
