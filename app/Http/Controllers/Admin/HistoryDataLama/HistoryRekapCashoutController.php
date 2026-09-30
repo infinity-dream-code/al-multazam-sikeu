@@ -106,36 +106,34 @@ class HistoryRekapCashoutController extends Controller
         return 'sccttran';
     }
 
-    private function userColumnExpr(string $alias): string
+    /** sccttran_29122025 → scctcashout_29122025 (sumber kolom User/Teller) */
+    private function resolveCashoutTable(): ?string
     {
-        // Builder kolom User = HELPDESK (cashless/admkeu/hehe), fallback MERCHANT
-        $cols = [];
+        $cashout = $this->tranTable === 'sccttran'
+            ? 'scctcashout'
+            : (string) preg_replace('/^sccttran_/', 'scctcashout_', $this->tranTable);
+
+        if ($cashout === '' || $cashout === $this->tranTable) {
+            return null;
+        }
+
         try {
-            $schema = Schema::connection('DATA_MYSQL');
-            if ($schema->hasColumn($this->tranTable, 'HELPDESK')) {
-                $cols[] = "NULLIF(TRIM({$alias}.HELPDESK), '')";
-            }
-            if ($schema->hasColumn($this->tranTable, 'MERCHANT')) {
-                $cols[] = "NULLIF(TRIM({$alias}.MERCHANT), '')";
-            } elseif ($schema->hasColumn($this->tranTable, 'MERCH')) {
-                $cols[] = "NULLIF(TRIM({$alias}.MERCH), '')";
+            if (Schema::connection('DATA_MYSQL')->hasTable($cashout)) {
+                return $cashout;
             }
         } catch (\Throwable) {
-            $cols[] = "NULLIF(TRIM({$alias}.HELPDESK), '')";
+            // ignore
         }
 
-        if ($cols === []) {
-            return "'-'";
-        }
-
-        return 'COALESCE(' . implode(', ', $cols) . ", '-')";
+        return null;
     }
 
     private function baseQuery(array $filters)
     {
         $t = $this->tranTable;
+        $co = $this->resolveCashoutTable();
 
-        // Pre-agregasi 1x (bukan correlated subquery per baris) — buang duplikat ExeByEXL
+        // Pre-agregasi 1x — buang duplikat ExeByEXL
         $exlKeep = $this->db()
             ->table("{$t} as d")
             ->selectRaw('d.CUSTID, d.DEBET, DATE(d.TRXDATE) as trx_day, MAX(d.urut) as max_urut')
@@ -159,6 +157,21 @@ class HistoryRekapCashoutController extends Controller
                 $q->whereRaw("UPPER(TRIM(COALESCE(t.NOREFF, ''))) <> 'EXEBYEXL'")
                     ->orWhereColumn('t.urut', 'exl_keep.max_urut');
             });
+
+        // User builder = Teller dari scctcashout(_cutoff), match siswa+tanggal+nominal
+        if ($co !== null) {
+            $tellerAgg = $this->db()
+                ->table("{$co} as co")
+                ->selectRaw('co.CUSTID, DATE(co.TanggalKeluar) as trx_day, CAST(TRIM(co.BILLAM) AS SIGNED) as billam, MAX(co.urut) as max_urut')
+                ->whereRaw("UPPER(TRIM(co.FIDBANK)) = 'CASH'")
+                ->groupByRaw('co.CUSTID, DATE(co.TanggalKeluar), CAST(TRIM(co.BILLAM) AS SIGNED)');
+
+            $query->leftJoinSub($tellerAgg, 'co_agg', function ($join) {
+                $join->on('co_agg.CUSTID', '=', 't.CUSTID')
+                    ->whereRaw('co_agg.trx_day = DATE(t.TRXDATE)')
+                    ->whereRaw('co_agg.billam = t.DEBET');
+            })->leftJoin("{$co} as co", 'co.urut', '=', 'co_agg.max_urut');
+        }
 
         $this->applySchoolScope($query);
         $this->applyFilters($query, $filters);
@@ -293,7 +306,7 @@ class HistoryRekapCashoutController extends Controller
 
     private function fetchRows(array $filters): LengthAwarePaginator
     {
-        $userExpr = $this->userColumnExpr('t');
+        $hasCashout = $this->resolveCashoutTable() !== null;
 
         $paginator = $this->baseQuery($filters)
             ->select([
@@ -310,16 +323,29 @@ class HistoryRekapCashoutController extends Controller
                 DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.kelas), ''), NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), NULLIF(TRIM(scctcust.DESC04), ''), '-') as kelas"),
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
-                // Builder: No Transaksi = TRANSNO, kalau kosong pakai NOREFF (abaikan ExeByEXL)
-                DB::raw("COALESCE(
-                    NULLIF(TRIM(t.TRANSNO), ''),
-                    CASE
-                        WHEN UPPER(TRIM(COALESCE(t.NOREFF, ''))) = 'EXEBYEXL' THEN NULL
-                        ELSE NULLIF(TRIM(t.NOREFF), '')
-                    END,
-                    ''
-                ) as no_transaksi"),
-                DB::raw("{$userExpr} as user_name"),
+                // No Transaksi: TRANSNO sccttran → NOREFF → TRANSNO scctcashout
+                DB::raw($hasCashout
+                    ? "COALESCE(
+                        NULLIF(TRIM(t.TRANSNO), ''),
+                        CASE
+                            WHEN UPPER(TRIM(COALESCE(t.NOREFF, ''))) = 'EXEBYEXL' THEN NULL
+                            ELSE NULLIF(TRIM(t.NOREFF), '')
+                        END,
+                        NULLIF(TRIM(co.TRANSNO), ''),
+                        ''
+                    ) as no_transaksi"
+                    : "COALESCE(
+                        NULLIF(TRIM(t.TRANSNO), ''),
+                        CASE
+                            WHEN UPPER(TRIM(COALESCE(t.NOREFF, ''))) = 'EXEBYEXL' THEN NULL
+                            ELSE NULLIF(TRIM(t.NOREFF), '')
+                        END,
+                        ''
+                    ) as no_transaksi"),
+                // User builder = Teller (scctcashout)
+                DB::raw($hasCashout
+                    ? "COALESCE(NULLIF(TRIM(co.Teller), ''), '-')"
+                    : "'-'") . ' as user_name',
             ])
             ->orderByRaw("COALESCE(NULLIF(scctcust.NOCUST, '-'), scctcust.NUM2ND, '') ASC")
             ->orderBy('t.TRXDATE')
@@ -339,10 +365,7 @@ class HistoryRekapCashoutController extends Controller
 
         return $paginator->through(function ($row) use ($saldoMap) {
             $user = trim((string) ($row->user_name ?? ''));
-            if ($user !== '' && $user !== '-' && preg_match('/User:\s*([^\s|]+)/i', $user, $m)) {
-                $user = trim($m[1]);
-            }
-            $row->user_name = $user !== '' ? $user : '-';
+            $row->user_name = ($user !== '' && $user !== '-') ? $user : '-';
             $row->no_transaksi = trim((string) ($row->no_transaksi ?? '')) ?: '-';
             $row->saldo = $saldoMap[(int) ($row->CUSTID ?? 0)] ?? 0;
 
