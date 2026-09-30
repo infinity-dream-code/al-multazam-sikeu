@@ -174,36 +174,22 @@ class HistoryRekapTopUpController extends Controller
     {
         $t = $this->tranTable;
 
+        // Tanpa self-join fee / mst_kelas — itu yang bikin arsip lambat
         $query = DB::connection('DATA_MYSQL')
             ->table("{$t} as t")
             ->join('scctcust', 't.CUSTID', '=', 'scctcust.CUSTID')
-            ->leftJoin('mst_kelas', DB::raw('CAST(mst_kelas.id AS CHAR)'), '=', DB::raw('TRIM(scctcust.CODE03)'))
-            ->leftJoin("{$t} as fee", function ($join) {
-                $join->on('fee.TRANSNO', '=', 't.TRANSNO')
-                    ->on('fee.CUSTID', '=', 't.CUSTID')
-                    ->where(function ($q) {
-                        $q->whereRaw('UPPER(TRIM(fee.METODE)) = ?', [self::METODE_FEE])
-                            ->orWhereRaw('UPPER(TRIM(fee.METODE)) = ?', ['ADMIN FEE'])
-                            ->orWhereRaw('UPPER(TRIM(fee.METODE)) = ?', ['BIAYA ADMIN TOPUP']);
-                    });
-            })
+            ->where('t.KREDIT', '>', 0)
             ->where(function ($q) {
-                $q->where(function ($q2) {
-                    $q2->whereRaw('UPPER(TRIM(t.METODE)) = ?', [self::METODE_TOPUP])
-                        ->whereRaw('TRIM(t.FIDBANK) = ?', [self::FIDBANK]);
-                })->orWhere(function ($q2) {
-                    $q2->whereRaw('UPPER(TRIM(t.METODE)) = ?', ['TOP UP CASHLESS'])
-                        ->whereRaw('TRIM(t.FIDBANK) = ?', [self::FIDBANK]);
-                })->orWhere(function ($q2) {
-                    $q2->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['TOPUP'])
-                        ->where('t.KREDIT', '>', 0);
-                })->orWhere(function ($q2) {
-                    // Variasi Al-Multazam: TOP UP X / TOP UP, dll
-                    $q2->whereRaw('UPPER(TRIM(t.METODE)) LIKE ?', ['TOP UP%'])
-                        ->where('t.KREDIT', '>', 0);
-                });
-            })
-            ->where('t.KREDIT', '>', 0);
+                $q->whereRaw("UPPER(TRIM(COALESCE(t.FIDBANK, ''))) = 'TOPUP'")
+                    ->orWhereRaw("UPPER(TRIM(COALESCE(t.METODE, ''))) LIKE 'TOP UP%'")
+                    ->orWhere(function ($q2) {
+                        $q2->whereRaw('TRIM(COALESCE(t.FIDBANK, \'\')) = ?', [self::FIDBANK])
+                            ->where(function ($q3) {
+                                $q3->whereRaw('UPPER(TRIM(t.METODE)) = ?', [self::METODE_TOPUP])
+                                    ->orWhereRaw('UPPER(TRIM(t.METODE)) = ?', ['TOP UP CASHLESS']);
+                            });
+                    });
+            });
 
         $this->applySchoolScope($query);
         $this->applyFilters($query, $filters);
@@ -214,6 +200,7 @@ class HistoryRekapTopUpController extends Controller
     private function selectColumns(): array
     {
         return [
+            't.urut',
             'scctcust.NOCUST as nis',
             'scctcust.NMCUST as nama',
             't.KREDIT as topup',
@@ -223,10 +210,7 @@ class HistoryRekapTopUpController extends Controller
                 ? 't.HELPDESK as helpdesk'
                 : DB::raw("'' as helpdesk"),
             't.METODE as metode',
-            DB::raw('CAST(COALESCE(fee.DEBET, 0) AS SIGNED) as fee_debet'),
-            DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.jenjang), ''), TRIM(scctcust.DESC02), '-') as kelas"),
-            DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.kelas), ''), TRIM(scctcust.DESC03), '-') as kelompok"),
-            DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
+            DB::raw('0 as fee_debet'),
         ];
     }
 
@@ -276,24 +260,27 @@ class HistoryRekapTopUpController extends Controller
     private function sumTotalsSql(array $filters): array
     {
         $cashFee = self::CASH_FEE;
-        $metodeTopup = self::METODE_TOPUP;
 
         if ($this->hasHelpdesk) {
             $feeExpr = "CASE
-                WHEN COALESCE(fee.DEBET, 0) > 0 THEN CAST(fee.DEBET AS SIGNED)
                 WHEN t.HELPDESK LIKE ? THEN
                     CAST(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(t.HELPDESK, 'Biaya:', -1), '|', 1)) AS SIGNED)
-                WHEN UPPER(TRIM(t.METODE)) IN ('CASH', ?, 'TOP UP CASHLESS') OR UPPER(TRIM(t.METODE)) LIKE 'TOP UP%' THEN ?
+                WHEN UPPER(TRIM(COALESCE(t.METODE, ''))) LIKE 'TOP UP%'
+                  OR UPPER(TRIM(COALESCE(t.METODE, ''))) = 'CASH'
+                  OR UPPER(TRIM(COALESCE(t.FIDBANK, ''))) = 'TOPUP'
+                THEN ?
                 ELSE 0
             END";
-            $bindings = ['%Biaya:%', $metodeTopup, $cashFee];
+            $bindings = ['%Biaya:%', $cashFee];
         } else {
             $feeExpr = "CASE
-                WHEN COALESCE(fee.DEBET, 0) > 0 THEN CAST(fee.DEBET AS SIGNED)
-                WHEN UPPER(TRIM(t.METODE)) IN ('CASH', ?, 'TOP UP CASHLESS') OR UPPER(TRIM(t.METODE)) LIKE 'TOP UP%' THEN ?
+                WHEN UPPER(TRIM(COALESCE(t.METODE, ''))) LIKE 'TOP UP%'
+                  OR UPPER(TRIM(COALESCE(t.METODE, ''))) = 'CASH'
+                  OR UPPER(TRIM(COALESCE(t.FIDBANK, ''))) = 'TOPUP'
+                THEN ?
                 ELSE 0
             END";
-            $bindings = [$metodeTopup, $cashFee];
+            $bindings = [$cashFee];
         }
 
         $row = $this->baseQuery($filters)
