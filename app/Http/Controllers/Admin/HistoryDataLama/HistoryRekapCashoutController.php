@@ -40,7 +40,7 @@ class HistoryRekapCashoutController extends Controller
         return view('admin.history_data_lama.history_rekap_cashout.index', [
             'title' => $this->title,
             'mainTitle' => $this->mainTitle,
-            'dataTitle' => 'History Rekap Keluar Uang Saku',
+            'dataTitle' => 'History Rekap Keluar Uang Saku Data Cutoff',
             'filters' => $filters,
             'isSearch' => $isSearch,
             'rows' => $rows,
@@ -60,6 +60,8 @@ class HistoryRekapCashoutController extends Controller
         $query = $this->db()
             ->table('scctran')
             ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctran.CUSTID')
+            ->leftJoin('mst_kelas', DB::raw('CAST(mst_kelas.id AS CHAR)'), '=', DB::raw('TRIM(scctcust.CODE03)'))
+            ->leftJoin('mst_sekolah', DB::raw('TRIM(mst_sekolah.CODE01)'), '=', DB::raw('TRIM(scctcust.CODE01)'))
             ->where('scctran.DEBET', '>', 0)
             ->where(function ($q) {
                 // FIDBANK = CASH + DEBET > 0
@@ -190,19 +192,31 @@ class HistoryRekapCashoutController extends Controller
                 'scctran.NOREFF',
                 'scctran.METODE',
                 'scctran.FIDBANK',
+                'scctran.MERCH',
                 'scctcust.NMCUST as nama',
                 'scctcust.NOCUST as nis',
-                DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), NULLIF(TRIM(scctcust.DESC04), ''), '-') as kelas"),
+                DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.kelas), ''), NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), NULLIF(TRIM(scctcust.DESC04), ''), '-') as kelas"),
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
-                DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
-                DB::raw("COALESCE(NULLIF(TRIM(scctran.TRANSNO), ''), NULLIF(TRIM(scctran.NOREFF), ''), '-') as no_transaksi"),
+                DB::raw("COALESCE(NULLIF(TRIM(mst_sekolah.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
+                DB::raw("COALESCE(NULLIF(TRIM(scctran.TRANSNO), ''), '') as no_transaksi"),
+                DB::raw("COALESCE(NULLIF(TRIM(scctran.MERCH), ''), '-') as user_name"),
                 DB::raw("{$saldoSub} as saldo"),
             ])
             ->orderByRaw("COALESCE(NULLIF(scctcust.NOCUST, '-'), scctcust.NUM2ND, '') ASC")
             ->orderBy('scctran.TRXDATE')
             ->orderBy('scctran.urut')
             ->paginate(self::PER_PAGE)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(function ($row) {
+                $user = trim((string) ($row->user_name ?? ''));
+                if ($user !== '' && $user !== '-' && preg_match('/User:\s*([^\s|]+)/i', $user, $m)) {
+                    $user = trim($m[1]);
+                }
+                $row->user_name = $user !== '' ? $user : '-';
+                $row->no_transaksi = trim((string) ($row->no_transaksi ?? '')) ?: '-';
+
+                return $row;
+            });
     }
 
     private function fetchCutoffOptions(): array

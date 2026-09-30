@@ -102,6 +102,7 @@
                 <thead class="table-light">
                 <tr>
                     <th>No</th>
+                    <th>NIS</th>
                     <th>Nama</th>
                     <th>Tgl Transaksi</th>
                     <th class="text-end">Debet</th>
@@ -114,6 +115,7 @@
                 @forelse (($rows ?? []) as $index => $row)
                     <tr>
                         <td>{{ ($rows->firstItem() ?? 0) + $index }}</td>
+                        <td>{{ $row->nis ?? '—' }}</td>
                         <td>{{ $row->nama ?? '—' }}</td>
                         <td>
                             @if (!empty($row->tgl_transaksi))
@@ -129,7 +131,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
+                        <td colspan="8" class="text-center text-muted py-4">
                             @if ($isSearch ?? false)
                                 Tidak ada transaksi belanja yang sesuai kriteria.
                             @else
