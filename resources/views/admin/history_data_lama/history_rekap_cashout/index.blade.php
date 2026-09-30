@@ -32,9 +32,6 @@
                                 <option value="{{ $val }}" @selected(($filters['periode_cutoff'] ?? '') === $val)>{{ $lbl }}</option>
                             @endforeach
                         </select>
-                        @if (!empty($activeTable))
-                            <small class="text-muted">Tabel: {{ $activeTable }}</small>
-                        @endif
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Tahun Angkatan</label>

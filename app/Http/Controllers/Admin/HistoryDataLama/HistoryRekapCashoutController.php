@@ -140,17 +140,8 @@ class HistoryRekapCashoutController extends Controller
             ->leftJoin('mst_kelas', DB::raw('CAST(mst_kelas.id AS CHAR)'), '=', DB::raw('TRIM(scctcust.CODE03)'))
             ->leftJoin('mst_sekolah', DB::raw('TRIM(mst_sekolah.CODE01)'), '=', DB::raw('TRIM(scctcust.CODE01)'))
             ->where('t.DEBET', '>', 0)
-            ->where(function ($q) {
-                // Samakan builder: FIDBANK=CASH, atau METODE CASHOUT tanpa FIDBANK
-                $q->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['CASH'])
-                    ->orWhere(function ($q2) {
-                        $q2->whereRaw('UPPER(TRIM(t.METODE)) LIKE ?', ['%CASHOUT%'])
-                            ->where(function ($q3) {
-                                $q3->whereNull('t.FIDBANK')
-                                    ->orWhereRaw("TRIM(COALESCE(t.FIDBANK, '')) = ''");
-                            });
-                    });
-            });
+            // Samakan builder / Rekap Keluar Uang Saku: hanya FIDBANK = CASH
+            ->whereRaw('UPPER(TRIM(t.FIDBANK)) = ?', ['CASH']);
 
         $this->applySchoolScope($query);
         $this->applyFilters($query, $filters);
