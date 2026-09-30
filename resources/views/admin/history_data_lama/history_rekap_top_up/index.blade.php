@@ -112,47 +112,38 @@
 
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Data Rekap TOPUP</h5>
+            <h5 class="mb-0">History Rekap Topup Setelah Cutoff</h5>
             @if ($isSearch ?? false)
-                <small class="text-muted">{{ $rows->total() ?? 0 }} transaksi</small>
+                <small class="text-muted">{{ $rows->total() ?? 0 }} data</small>
             @endif
         </div>
         @if (!empty($errorMessage))
             <div class="alert alert-danger m-3 mb-0">{{ $errorMessage }}</div>
         @endif
-        @if ($isSearch ?? false)
-            <div class="card-body border-bottom py-2">
-                <div class="row g-2 small">
-                    <div class="col-md-4">Total TOPUP (halaman): <strong>Rp {{ number_format((int) ($totals['topup'] ?? 0), 0, ',', '.') }}</strong></div>
-                    <div class="col-md-4">Total Biaya (halaman): <strong>Rp {{ number_format((int) ($totals['fee'] ?? 0), 0, ',', '.') }}</strong></div>
-                    <div class="col-md-4">Grand Total (halaman): <strong>Rp {{ number_format((int) ($totals['grand'] ?? 0), 0, ',', '.') }}</strong></div>
-                </div>
-            </div>
-        @endif
         <div class="table-responsive">
             <table class="table table-sm table-bordered table-hover mb-0">
                 <thead class="table-light">
                 <tr>
-                    <th>No</th>
+                    <th>Kelas</th>
+                    <th>Gender</th>
+                    <th>Lokasi</th>
                     <th>NIS</th>
-                    <th>Nama Siswa</th>
+                    <th>Nama</th>
                     <th class="text-end">TOPUP</th>
-                    <th class="text-end">Biaya</th>
-                    <th class="text-end">Total</th>
                     <th>Tgl Transaksi</th>
                     <th>No Transaksi</th>
                     <th>User</th>
                 </tr>
                 </thead>
                 <tbody>
-                @forelse (($rows ?? []) as $index => $row)
+                @forelse (($rows ?? []) as $row)
                     <tr>
-                        <td>{{ ($rows->firstItem() ?? 0) + $index }}</td>
+                        <td>{{ $row->kelas ?? '—' }}</td>
+                        <td>{{ $row->gender ?? '—' }}</td>
+                        <td>{{ $row->lokasi ?? '—' }}</td>
                         <td>{{ $row->nis ?? '—' }}</td>
                         <td>{{ $row->nama ?? '—' }}</td>
                         <td class="text-end">{{ number_format((int) ($row->topup ?? 0), 0, ',', '.') }}</td>
-                        <td class="text-end">{{ number_format((int) ($row->fee ?? 0), 0, ',', '.') }}</td>
-                        <td class="text-end">{{ number_format((int) ($row->total ?? 0), 0, ',', '.') }}</td>
                         <td>
                             @if (!empty($row->tgl_transaksi))
                                 {{ \Illuminate\Support\Carbon::parse($row->tgl_transaksi)->format('Y-m-d H:i:s') }}

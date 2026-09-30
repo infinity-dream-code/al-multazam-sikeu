@@ -66,29 +66,35 @@
     <table class="data">
         <thead>
             <tr>
-                <th style="width:28px;">No</th>
-                <th style="width:70px;">Kelas</th>
-                <th style="width:28px;">L/P</th>
-                <th style="width:70px;">Kelompok</th>
-                <th style="width:80px;">NIS</th>
-                <th>Nama Siswa</th>
-                <th style="width:80px;">TOPUP</th>
-                <th style="width:60px;">Biaya</th>
-                <th style="width:80px;">Total</th>
+                <th>Kelas</th>
+                <th>Gender</th>
+                <th>Lokasi</th>
+                <th>NIS</th>
+                <th>Nama</th>
+                <th>TOPUP</th>
+                <th>Tgl Transaksi</th>
+                <th>No Transaksi</th>
+                <th>User</th>
             </tr>
         </thead>
         <tbody>
-            @forelse (($rows ?? collect()) as $i => $row)
+            @forelse (($rows ?? collect()) as $row)
                 <tr>
-                    <td style="text-align:center;">{{ $i + 1 }}</td>
                     <td>{{ $row->kelas ?? '—' }}</td>
                     <td style="text-align:center;">{{ $row->gender ?? '—' }}</td>
-                    <td>{{ $row->kelompok ?? '—' }}</td>
+                    <td>{{ $row->lokasi ?? '—' }}</td>
                     <td>{{ $row->nis ?? '—' }}</td>
                     <td>{{ $row->nama ?? '—' }}</td>
                     <td class="num">{{ number_format((int) ($row->topup ?? 0), 0, ',', '.') }}</td>
-                    <td class="num">{{ number_format((int) ($row->fee ?? 0), 0, ',', '.') }}</td>
-                    <td class="num">{{ number_format((int) ($row->total ?? 0), 0, ',', '.') }}</td>
+                    <td>
+                        @if (!empty($row->tgl_transaksi))
+                            {{ \Illuminate\Support\Carbon::parse($row->tgl_transaksi)->format('Y-m-d H:i:s') }}
+                        @else
+                            —
+                        @endif
+                    </td>
+                    <td>{{ $row->no_transaksi ?? '—' }}</td>
+                    <td>{{ $row->user ?? '—' }}</td>
                 </tr>
             @empty
                 <tr>
@@ -100,10 +106,6 @@
 
     <div class="totals">
         Total TOPUP: <strong>{{ number_format((int) ($totals['topup'] ?? 0), 0, ',', '.') }}</strong>
-        &nbsp;|&nbsp;
-        Total Biaya: <strong>{{ number_format((int) ($totals['fee'] ?? 0), 0, ',', '.') }}</strong>
-        &nbsp;|&nbsp;
-        Grand Total: <strong>{{ number_format((int) ($totals['grand'] ?? 0), 0, ',', '.') }}</strong>
     </div>
 
     <div style="margin-top:24px;text-align:right;font-size:10px;">

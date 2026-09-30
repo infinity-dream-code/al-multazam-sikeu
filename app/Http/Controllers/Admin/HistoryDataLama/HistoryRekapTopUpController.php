@@ -71,7 +71,7 @@ class HistoryRekapTopUpController extends Controller
         return view('admin.history_data_lama.history_rekap_top_up.index', [
             'title' => 'History Data Lama',
             'mainTitle' => 'History Rekap Top Up',
-            'dataTitle' => 'History Rekap Top Up',
+            'dataTitle' => 'History Rekap Topup Setelah Cutoff',
             'filters' => $filters,
             'isSearch' => $isSearch,
             'rows' => $rows,
@@ -211,6 +211,9 @@ class HistoryRekapTopUpController extends Controller
                 : DB::raw("'' as helpdesk"),
             't.METODE as metode',
             DB::raw('0 as fee_debet'),
+            DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), '-') as kelas"),
+            DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
+            DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
         ];
     }
 
