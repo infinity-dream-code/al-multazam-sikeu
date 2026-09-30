@@ -158,6 +158,15 @@ class HistoryRekapCashoutController extends Controller
                     ->orWhereColumn('t.urut', 'exl_keep.max_urut');
             });
 
+        // Nama sekolah (bukan kode CODE01)
+        $sekolah = $this->db()
+            ->table('mst_sekolah')
+            ->selectRaw('TRIM(CODE01) as code01, MAX(NULLIF(TRIM(DESC01), \'\')) as nama_sekolah')
+            ->groupByRaw('TRIM(CODE01)');
+        $query->leftJoinSub($sekolah, 'sk', function ($join) {
+            $join->on(DB::raw('sk.code01'), '=', DB::raw('TRIM(scctcust.CODE01)'));
+        });
+
         // User builder = Teller dari scctcashout(_cutoff), match siswa+tanggal+nominal
         if ($co !== null) {
             $tellerAgg = $this->db()
@@ -322,7 +331,7 @@ class HistoryRekapCashoutController extends Controller
                 'scctcust.NOCUST as nis',
                 DB::raw("COALESCE(NULLIF(TRIM(mst_kelas.kelas), ''), NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), NULLIF(TRIM(scctcust.DESC04), ''), '-') as kelas"),
                 DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
-                DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
+                DB::raw("COALESCE(NULLIF(TRIM(sk.nama_sekolah), ''), NULLIF(TRIM(scctcust.DESC01), ''), '-') as lokasi"),
                 // No Transaksi: TRANSNO sccttran → NOREFF → TRANSNO scctcashout
                 DB::raw($hasCashout
                     ? "COALESCE(

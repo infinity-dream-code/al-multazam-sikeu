@@ -163,8 +163,13 @@ class HistoryRekapTopUpController extends Controller
 
     private function detectHelpdeskColumn(string $table): bool
     {
+        return $this->detectColumn($table, 'HELPDESK');
+    }
+
+    private function detectColumn(string $table, string $column): bool
+    {
         try {
-            return Schema::connection('DATA_MYSQL')->hasColumn($table, 'HELPDESK');
+            return Schema::connection('DATA_MYSQL')->hasColumn($table, $column);
         } catch (\Throwable) {
             return false;
         }
@@ -174,10 +179,18 @@ class HistoryRekapTopUpController extends Controller
     {
         $t = $this->tranTable;
 
-        // Tanpa self-join fee / mst_kelas — itu yang bikin arsip lambat
+        // Tanpa self-join fee — arsip besar jadi lambat
+        $sekolah = DB::connection('DATA_MYSQL')
+            ->table('mst_sekolah')
+            ->selectRaw('TRIM(CODE01) as code01, MAX(NULLIF(TRIM(DESC01), \'\')) as nama_sekolah')
+            ->groupByRaw('TRIM(CODE01)');
+
         $query = DB::connection('DATA_MYSQL')
             ->table("{$t} as t")
             ->join('scctcust', 't.CUSTID', '=', 'scctcust.CUSTID')
+            ->leftJoinSub($sekolah, 'sk', function ($join) {
+                $join->on(DB::raw('sk.code01'), '=', DB::raw('TRIM(scctcust.CODE01)'));
+            })
             ->where('t.KREDIT', '>', 0)
             ->where(function ($q) {
                 $q->whereRaw("UPPER(TRIM(COALESCE(t.FIDBANK, ''))) = 'TOPUP'")
@@ -199,6 +212,23 @@ class HistoryRekapTopUpController extends Controller
 
     private function selectColumns(): array
     {
+        $hasMerchant = $this->detectColumn($this->tranTable, 'MERCHANT')
+            || $this->detectColumn($this->tranTable, 'MERCH');
+        $merchantCol = $this->detectColumn($this->tranTable, 'MERCHANT')
+            ? 't.MERCHANT'
+            : ($this->detectColumn($this->tranTable, 'MERCH') ? 't.MERCH' : null);
+
+        $userParts = [];
+        if ($this->hasHelpdesk) {
+            $userParts[] = "NULLIF(TRIM(t.HELPDESK), '')";
+        }
+        if ($merchantCol !== null) {
+            $userParts[] = "NULLIF(TRIM({$merchantCol}), '')";
+        }
+        $userExpr = $userParts === []
+            ? "'-'"
+            : 'COALESCE(' . implode(', ', $userParts) . ", '-')";
+
         return [
             't.urut',
             'scctcust.NOCUST as nis',
@@ -213,7 +243,8 @@ class HistoryRekapTopUpController extends Controller
             DB::raw('0 as fee_debet'),
             DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC03), ''), NULLIF(TRIM(scctcust.DESC02), ''), '-') as kelas"),
             DB::raw("COALESCE(NULLIF(TRIM(scctcust.CODE04), ''), '-') as gender"),
-            DB::raw("COALESCE(NULLIF(TRIM(scctcust.DESC01), ''), NULLIF(TRIM(scctcust.CODE01), ''), '-') as lokasi"),
+            DB::raw("COALESCE(NULLIF(TRIM(sk.nama_sekolah), ''), NULLIF(TRIM(scctcust.DESC01), ''), '-') as lokasi"),
+            DB::raw("{$userExpr} as user_raw"),
         ];
     }
 
@@ -238,7 +269,10 @@ class HistoryRekapTopUpController extends Controller
         $row->topup = $topupGross;
         $row->fee = $fee;
         $row->total = max(0, $topupGross - $fee);
-        $row->user = $this->parseUser((string) ($row->helpdesk ?? ''));
+
+        $rawUser = trim((string) ($row->user_raw ?? $row->helpdesk ?? ''));
+        $parsed = $this->parseUser($rawUser);
+        $row->user = $parsed !== '-' ? $parsed : ($rawUser !== '' && $rawUser !== '-' ? $rawUser : '-');
 
         return $row;
     }
@@ -493,6 +527,12 @@ class HistoryRekapTopUpController extends Controller
 
             return strcmp($rb, $ra);
         });
+
+        // Tanpa cutoff → data aktif sccttran
+        $options[] = (object) [
+            'value' => 'sccttran',
+            'label' => 'Data Aktif (sccttran)',
+        ];
 
         return $options;
     }
