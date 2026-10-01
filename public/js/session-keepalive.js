@@ -92,14 +92,16 @@
     function withUpdatedCsrfHeaders(headers) {
         var token = getCsrf();
         if (!token) return headers;
+        // Hanya X-CSRF-TOKEN (plain). Jangan set X-XSRF-TOKEN = plain token —
+        // Laravel menganggap X-XSRF-TOKEN terenkripsi; salah → bisa 500.
         if (headers instanceof Headers) {
             headers.set('X-CSRF-TOKEN', token);
-            headers.set('X-XSRF-TOKEN', token);
+            headers.delete('X-XSRF-TOKEN');
             return headers;
         }
         var next = Object.assign({}, headers || {});
         next['X-CSRF-TOKEN'] = token;
-        next['X-XSRF-TOKEN'] = token;
+        if (next['X-XSRF-TOKEN']) delete next['X-XSRF-TOKEN'];
         return next;
     }
 
@@ -120,6 +122,16 @@
         return body;
     }
 
+    function takeCsrfFromResponse(response) {
+        return response.clone().json().then(function (data) {
+            if (data && data.csrf) {
+                setCsrf(data.csrf);
+                return true;
+            }
+            return false;
+        }).catch(function () { return false; });
+    }
+
     function patchFetch() {
         if (!window.fetch) return;
         var rawFetch = window.fetch.bind(window);
@@ -136,7 +148,9 @@
                     if (retried || !shouldRetryStatus(response.status) || isKeepAlive) {
                         return response;
                     }
-                    return refreshCsrf().then(function (ok) {
+                    return takeCsrfFromResponse(response).then(function () {
+                        return refreshCsrf();
+                    }).then(function (ok) {
                         if (!ok && response.status !== 419) {
                             return response;
                         }

@@ -10,7 +10,10 @@ use Illuminate\Support\Facades\Log;
 
 class PersistentLogin
 {
-    public const COOKIE = 'muallimat_keu';
+    public const COOKIE = 'al_multazam';
+
+    /** Cookie lama (template) — tetap dibaca agar user tidak ter-logout sekali. */
+    private const LEGACY_COOKIE = 'muallimat_keu';
 
     public static function minutes(): int
     {
@@ -19,9 +22,7 @@ class PersistentLogin
 
     public static function hasCookie(): bool
     {
-        $raw = request()->cookie(self::COOKIE);
-
-        return $raw !== null && $raw !== '';
+        return self::cookieValue() !== null;
     }
 
     public static function set(?Authenticatable $user = null): void
@@ -46,11 +47,11 @@ class PersistentLogin
 
     public static function clear(): void
     {
-        Cookie::queue(Cookie::forget(
-            self::COOKIE,
-            config('session.path', '/'),
-            config('session.domain')
-        ));
+        $path = config('session.path', '/');
+        $domain = config('session.domain');
+
+        Cookie::queue(Cookie::forget(self::COOKIE, $path, $domain));
+        Cookie::queue(Cookie::forget(self::LEGACY_COOKIE, $path, $domain));
     }
 
     /**
@@ -67,7 +68,7 @@ class PersistentLogin
             return false;
         }
 
-        $raw = request()->cookie(self::COOKIE);
+        $raw = self::cookieValue();
         $id = is_numeric($raw) ? (int) $raw : 0;
         if ($id <= 0) {
             // cookie corrupt — only then remove
@@ -100,5 +101,17 @@ class PersistentLogin
             ]);
             return false;
         }
+    }
+
+    private static function cookieValue(): ?string
+    {
+        foreach ([self::COOKIE, self::LEGACY_COOKIE] as $name) {
+            $raw = request()->cookie($name);
+            if ($raw !== null && $raw !== '') {
+                return (string) $raw;
+            }
+        }
+
+        return null;
     }
 }

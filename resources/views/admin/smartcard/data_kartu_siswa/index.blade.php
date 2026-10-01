@@ -86,7 +86,7 @@
                 <small class="text-muted">hasil pencarian</small>
             @endif
         </div>
-        <div class="table-responsive" style="max-height:480px;">
+        <div class="table-responsive">
             <table class="table table-sm table-bordered table-hover mb-0">
                 <thead class="table-light">
                     <tr>
@@ -116,9 +116,11 @@
             <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <small class="text-muted">
                     Menampilkan {{ $kartuRows->firstItem() ?? 0 }} sampai {{ $kartuRows->lastItem() ?? 0 }}
-                    dari {{ $kartuRows->total() ?? 0 }} entri
+                    dari {{ number_format($kartuRows->total() ?? 0, 0, ',', '.') }} entri
                 </small>
-                {{ $kartuRows->links() }}
+                <div>
+                    {{ $kartuRows->links('pagination::bootstrap-5') }}
+                </div>
             </div>
         @endif
     </div>

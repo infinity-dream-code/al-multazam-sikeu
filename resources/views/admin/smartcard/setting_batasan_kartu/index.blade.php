@@ -125,9 +125,11 @@
             <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <small class="text-muted">
                     Menampilkan {{ $batasanRows->firstItem() ?? 0 }} sampai {{ $batasanRows->lastItem() ?? 0 }}
-                    dari {{ $batasanRows->total() ?? 0 }} entri
+                    dari {{ number_format($batasanRows->total() ?? 0, 0, ',', '.') }} entri
                 </small>
-                {{ $batasanRows->links() }}
+                <div>
+                    {{ $batasanRows->links('pagination::bootstrap-5') }}
+                </div>
             </div>
         @endif
     </div>

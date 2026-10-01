@@ -38,10 +38,20 @@ class CheckUserRoles
                         ->withCookie(cookie('_auth_retry', '1', 1, null, null, false, true, false, 'lax'));
                 }
 
-                return redirect('/admin');
+                return response(
+                    '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">'
+                    . '<meta http-equiv="refresh" content="2">'
+                    . '<title>Memulihkan sesi</title></head><body style="font-family:system-ui;display:flex;'
+                    . 'align-items:center;justify-content:center;min-height:100vh;margin:0;color:#6b7280;">'
+                    . '<div style="text-align:center"><p>Memulihkan sesi…</p>'
+                    . '<p style="font-size:.875rem">Halaman akan dimuat ulang otomatis.</p></div>'
+                    . '<script>setTimeout(function(){location.reload()},2000)</script></body></html>',
+                    503,
+                    ['Content-Type' => 'text/html; charset=UTF-8', 'Cache-Control' => 'no-store']
+                );
             }
 
-            return redirect('login');
+            return redirect()->route('login');
         }
 
         $user = Auth::user();
