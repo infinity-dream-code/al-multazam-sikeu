@@ -9,21 +9,7 @@ class SmartcardPlaceholderController extends Controller
 {
     public function index(string $page): View
     {
-        $titles = [
-            'transaksi-belanja' => 'Transaksi Belanja',
-            'pencairan-kantin' => 'Pencairan Kantin',
-            'rekap-topup' => 'Rekap TOPUP',
-            'tap-ritel' => 'TAP RITEL',
-            'tap-laundry' => 'TAP LAUNDRY',
-            'tap-perpus' => 'TAP PERPUS',
-            'topup-saldo' => 'TOP UP Saldo',
-            'migrasi-saldo-awal' => 'Migrasi Saldo Awal',
-            'debit-saldo-excel' => 'Debit Saldo Excel',
-            'debit-saldo' => 'Debit Saldo',
-            'setting-merchant-mobile' => 'Setting Merchant Mobile',
-            'keluar-uang-saku' => 'Keluar Uang Saku',
-            'cek-batas-jajan' => 'CEK Batas Jajan',
-        ];
+        $titles = [];
 
         $mainTitle = $titles[$page] ?? str_replace('-', ' ', ucwords($page, '-'));
 
