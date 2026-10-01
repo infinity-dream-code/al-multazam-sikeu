@@ -122,7 +122,7 @@
                 </li>
                 <li class="menu-item {{ Request::is(['admin/smartcard/setting-batasan-saku*']) ? 'active' : '' }}">
                     <a href="{{ route('admin.smartcard.setting-batasan-saku.index') }}" class="menu-link">
-                        <div>Setting Batasan Saku</div>
+                        <div>Setting Batasan Kartu</div>
                     </a>
                 </li>
                 <li class="menu-item {{ Request::is(['admin/smartcard/transaksi-belanja*']) ? 'active' : '' }}">
@@ -132,7 +132,7 @@
                 </li>
                 <li class="menu-item {{ Request::is(['admin/smartcard/pencairan-kantin*']) ? 'active' : '' }}">
                     <a href="{{ route('admin.smartcard.pencairan-kantin.index') }}" class="menu-link">
-                        <div>Pencairan Kantin</div>
+                        <div>Rekap Pencairan Kantin</div>
                     </a>
                 </li>
                 <li class="menu-item {{ Request::is(['admin/smartcard/rekap-topup*']) ? 'active' : '' }}">

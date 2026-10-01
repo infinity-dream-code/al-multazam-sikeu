@@ -271,7 +271,7 @@ class SaldoVirtualAccountController extends Controller
                 'v.DESC04',
                 'v.SALDO',
             ])
-            ->orderBy('v.NMCUST')
+            ->orderBy('v.CUSTID')
             ->limit(self::MAX_ROWS)
             ->get();
 

@@ -10,10 +10,6 @@ class SmartcardPlaceholderController extends Controller
     public function index(string $page): View
     {
         $titles = [
-            'saldo-virtual-account' => 'Saldo Virtual Account',
-            'data-kartu-siswa' => 'Data Kartu Siswa',
-            'setting-blokir-kartu' => 'Setting Blokir Kartu',
-            'setting-batasan-saku' => 'Setting Batasan Saku',
             'transaksi-belanja' => 'Transaksi Belanja',
             'pencairan-kantin' => 'Pencairan Kantin',
             'rekap-topup' => 'Rekap TOPUP',
@@ -28,9 +24,6 @@ class SmartcardPlaceholderController extends Controller
             'keluar-uang-saku' => 'Keluar Uang Saku',
             'cek-batas-jajan' => 'CEK Batas Jajan',
         ];
-
-        // saldo-virtual-account sudah punya controller sendiri
-        unset($titles['saldo-virtual-account']);
 
         $mainTitle = $titles[$page] ?? str_replace('-', ' ', ucwords($page, '-'));
 
