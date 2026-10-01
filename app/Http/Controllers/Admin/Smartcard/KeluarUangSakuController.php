@@ -121,9 +121,8 @@ class KeluarUangSakuController extends Controller
             ->limit(15)
             ->get(['c.CUSTID', 'c.NOCUST', 'c.NUM2ND', 'c.NMCUST', 'c.DESC02', 'c.DESC03', 'c.CODE02']);
 
-        $saldoMap = $this->fetchSaldoMap($found->pluck('CUSTID')->map(fn ($id) => (int) $id)->all());
-
-        $rows = $found->map(function ($row) use ($saldoMap) {
+        // Saldo hanya di siswaDetail setelah siswa dipilih
+        $rows = $found->map(function ($row) {
             $nis = trim((string) ($row->NOCUST ?? ''));
             if ($nis === '') {
                 $nis = trim((string) ($row->NUM2ND ?? ''));
@@ -139,7 +138,6 @@ class KeluarUangSakuController extends Controller
                 'kelas' => trim((string) ($row->DESC02 ?? '')),
                 'kelompok' => trim((string) ($row->DESC03 ?? '')),
                 'jenjang' => trim((string) ($row->CODE02 ?? '')),
-                'saldo' => (int) ($saldoMap[$custid] ?? 0),
             ];
         })->values()->all();
 

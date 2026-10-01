@@ -33,16 +33,16 @@
                         <input type="text" class="form-control" id="nisInput" name="nis_display"
                                value="{{ $nis ?? '' }}" autocomplete="off"
                                placeholder="Ketik min. 3 karakter">
-                        <div id="nisList" class="list-group position-absolute w-100 shadow"
-                             style="display:none;z-index:200;max-height:240px;overflow:auto;top:calc(100% + 2px);"></div>
+                        <div id="nisList" class="list-group position-absolute w-100 shadow border bg-white"
+                             style="display:none;z-index:1050;max-height:240px;overflow:auto;top:calc(100% + 2px);background:#fff !important;"></div>
                     </div>
                     <div class="col-md-3 position-relative">
                         <label class="form-label">NAMA</label>
                         <input type="text" class="form-control" id="namaInput" name="nama_display"
                                value="{{ $nama ?? '' }}" autocomplete="off"
                                placeholder="Ketik min. 3 karakter">
-                        <div id="namaList" class="list-group position-absolute w-100 shadow"
-                             style="display:none;z-index:200;max-height:240px;overflow:auto;top:calc(100% + 2px);"></div>
+                        <div id="namaList" class="list-group position-absolute w-100 shadow border bg-white"
+                             style="display:none;z-index:1050;max-height:240px;overflow:auto;top:calc(100% + 2px);background:#fff !important;"></div>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Metode</label>
@@ -232,7 +232,7 @@
         custidEl.value = row.custid || '';
         nisInput.value = row.nis || '';
         namaInput.value = row.nama || '';
-        saldoBox.value = fmt(row.saldo || 0);
+        saldoBox.value = '…';
         document.getElementById('cetakCustid').value = row.custid || '';
         closeLists();
         syncTopupBtn();
@@ -242,15 +242,16 @@
     function renderList(el, rows, seqCheck, seq) {
         if (seqCheck !== seq) return;
         if (!rows.length) {
-            el.innerHTML = '<div class="list-group-item text-muted small">Tidak ditemukan</div>';
+            el.innerHTML = '<div class="list-group-item text-muted small bg-white">Tidak ditemukan</div>';
             el.style.display = 'block';
             return;
         }
         el.innerHTML = rows.map(function (r) {
-            return '<button type="button" class="list-group-item list-group-item-action py-2" data-json="' +
+            const sub = r.kelas || r.kelompok || '';
+            return '<button type="button" class="list-group-item list-group-item-action py-2 bg-white" data-json="' +
                 encodeURIComponent(JSON.stringify(r)) + '">' +
                 '<div class="fw-semibold">' + (r.label || '') + '</div>' +
-                '<small class="text-muted">Saldo: ' + fmt(r.saldo) + (r.kelas ? ' · ' + r.kelas : '') + '</small>' +
+                (sub ? '<small class="text-muted">' + sub + '</small>' : '') +
                 '</button>';
         }).join('');
         el.style.display = 'block';
@@ -269,7 +270,7 @@
             return;
         }
         const seq = setSeq();
-        listEl.innerHTML = '<div class="list-group-item text-muted small">Mencari…</div>';
+        listEl.innerHTML = '<div class="list-group-item text-muted small bg-white">Mencari…</div>';
         listEl.style.display = 'block';
         fetch(searchUrl + '?q=' + encodeURIComponent(query) + '&mode=' + mode, {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -281,7 +282,7 @@
             })
             .catch(function () {
                 if (seqRef() !== seq) return;
-                listEl.innerHTML = '<div class="list-group-item text-danger small">Gagal mencari</div>';
+                listEl.innerHTML = '<div class="list-group-item text-danger small bg-white">Gagal mencari</div>';
             });
     }
 

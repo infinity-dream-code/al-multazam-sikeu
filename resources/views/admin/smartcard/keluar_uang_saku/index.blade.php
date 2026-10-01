@@ -32,15 +32,15 @@
                         <label class="form-label">NIS</label>
                         <input type="text" class="form-control" id="nisInput" name="nis_display"
                                value="{{ $nis ?? '' }}" autocomplete="off" placeholder="Min. 3 karakter">
-                        <div id="nisList" class="list-group position-absolute w-100 shadow"
-                             style="display:none;z-index:200;max-height:240px;overflow:auto;top:calc(100% + 2px);"></div>
+                        <div id="nisList" class="list-group position-absolute w-100 shadow border bg-white"
+                             style="display:none;z-index:1050;max-height:240px;overflow:auto;top:calc(100% + 2px);background:#fff !important;"></div>
                     </div>
                     <div class="col-md-3 position-relative">
                         <label class="form-label">NAMA</label>
                         <input type="text" class="form-control" id="namaInput" name="nama_display"
                                value="{{ $nama ?? '' }}" autocomplete="off" placeholder="Min. 3 karakter">
-                        <div id="namaList" class="list-group position-absolute w-100 shadow"
-                             style="display:none;z-index:200;max-height:240px;overflow:auto;top:calc(100% + 2px);"></div>
+                        <div id="namaList" class="list-group position-absolute w-100 shadow border bg-white"
+                             style="display:none;z-index:1050;max-height:240px;overflow:auto;top:calc(100% + 2px);background:#fff !important;"></div>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">SALDO</label>
@@ -350,14 +350,16 @@
                 if (mySeq !== seqRef.n) return;
                 const rows = json.rows || [];
                 if (!rows.length) {
-                    listEl.innerHTML = '<div class="list-group-item text-muted">Tidak ditemukan</div>';
+                    listEl.innerHTML = '<div class="list-group-item text-muted bg-white">Tidak ditemukan</div>';
                     listEl.style.display = 'block';
                     return;
                 }
                 listEl.innerHTML = rows.map(function (r) {
-                    return '<button type="button" class="list-group-item list-group-item-action" data-custid="' +
-                        r.custid + '">' + (r.label || r.nama) +
-                        ' <small class="text-muted">Saldo ' + fmt(r.saldo) + '</small></button>';
+                    const sub = r.kelas || r.kelompok || '';
+                    return '<button type="button" class="list-group-item list-group-item-action bg-white" data-custid="' +
+                        r.custid + '"><div class="fw-semibold">' + (r.label || r.nama) + '</div>' +
+                        (sub ? '<small class="text-muted">' + sub + '</small>' : '') +
+                        '</button>';
                 }).join('');
                 listEl.style.display = 'block';
                 listEl.querySelectorAll('button').forEach(function (btn) {

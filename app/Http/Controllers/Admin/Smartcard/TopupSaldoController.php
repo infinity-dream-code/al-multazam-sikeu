@@ -120,9 +120,8 @@ class TopupSaldoController extends Controller
             ->limit(15)
             ->get(['c.CUSTID', 'c.NOCUST', 'c.NUM2ND', 'c.NMCUST', 'c.DESC02', 'c.DESC03']);
 
-        $saldoMap = $this->fetchSaldoMap($found->pluck('CUSTID')->map(fn ($id) => (int) $id)->all());
-
-        $rows = $found->map(function ($row) use ($saldoMap) {
+        // Saldo tidak di-load di autocomplete — baru di siswaDetail setelah dipilih
+        $rows = $found->map(function ($row) {
             $nis = trim((string) ($row->NOCUST ?? ''));
             if ($nis === '') {
                 $nis = trim((string) ($row->NUM2ND ?? ''));
@@ -137,7 +136,6 @@ class TopupSaldoController extends Controller
                 'label' => $nis !== '' && $nama !== '' ? $nis . ' — ' . $nama : ($nis ?: $nama),
                 'kelas' => trim((string) ($row->DESC02 ?? '')),
                 'kelompok' => trim((string) ($row->DESC03 ?? '')),
-                'saldo' => (int) ($saldoMap[$custid] ?? 0),
             ];
         })->values()->all();
 
