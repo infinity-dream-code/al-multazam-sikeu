@@ -84,7 +84,14 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between">
                     <h5 class="mb-0">Data Siswa</h5>
-                    <small class="text-muted">{{ ($isSearch ?? false) ? count($rows) . ' data' : '' }}</small>
+                    <small class="text-muted">
+                        @if ($isSearch ?? false)
+                            {{ count($rows) }} data
+                            @if (count($rows) >= ($maxRows ?? 500))
+                                (maks {{ $maxRows ?? 500 }})
+                            @endif
+                        @endif
+                    </small>
                 </div>
                 <div class="table-responsive" style="max-height: 480px;">
                     <table class="table table-sm table-bordered table-hover mb-0" id="svaSiswaTable">

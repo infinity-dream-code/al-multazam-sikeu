@@ -13,7 +13,8 @@ use Illuminate\View\View;
 
 class SaldoVirtualAccountController extends Controller
 {
-    private const PER_PAGE = 50;
+    /** Maks siswa per load (sama seperti builder). */
+    private const MAX_ROWS = 500;
 
     private string $vaPrefix;
 
@@ -63,6 +64,7 @@ class SaldoVirtualAccountController extends Controller
             'kelasOptions' => $this->fetchKelasOptions(),
             'angkatanOptions' => $this->fetchAngkatanOptions(),
             'selectedSaldo' => 0,
+            'maxRows' => self::MAX_ROWS,
         ]);
     }
 
@@ -187,7 +189,7 @@ class SaldoVirtualAccountController extends Controller
                 'v.SALDO',
             ])
             ->orderBy('v.NMCUST')
-            ->limit(self::PER_PAGE * 10)
+            ->limit(self::MAX_ROWS)
             ->get();
 
         return $rows->map(function ($row) {
