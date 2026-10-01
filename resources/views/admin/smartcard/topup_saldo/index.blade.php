@@ -56,7 +56,6 @@
                         <label class="form-label">TOP UP</label>
                         <input type="text" class="form-control fw-bold" name="nominal" id="nominalInput"
                                inputmode="numeric" value="0" autocomplete="off">
-                        <small class="text-muted">Min &gt; {{ number_format($adminFee, 0, ',', '.') }} (admin)</small>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Keterangan</label>
@@ -328,7 +327,7 @@
         clearTimeout(timerNis);
         timerNis = setTimeout(function () {
             fetchSearch(nisInput.value, 'nis', nisList, function () { return seqNis; }, function () { return ++seqNis; });
-        }, 280);
+        }, 400);
     });
 
     namaInput.addEventListener('input', function () {
@@ -337,7 +336,7 @@
         clearTimeout(timerNama);
         timerNama = setTimeout(function () {
             fetchSearch(namaInput.value, 'nama', namaList, function () { return seqNama; }, function () { return ++seqNama; });
-        }, 280);
+        }, 400);
     });
 
     document.addEventListener('click', function (e) {

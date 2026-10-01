@@ -88,51 +88,60 @@ class KeluarUangSakuController extends Controller
         }
 
         $query = DB::connection('DATA_MYSQL')
-            ->table('scctcust')
-            ->where('STCUST', 1);
+            ->table('scctcust as c')
+            ->where('c.STCUST', 1);
 
-        $this->applySchoolScope($query);
+        $this->applySchoolScope($query, 'c');
 
         if ($mode === 'nis') {
             $query->where(function ($w) use ($q) {
-                $w->where('NOCUST', 'like', '%' . $q . '%')
-                    ->orWhere('NUM2ND', 'like', '%' . $q . '%');
+                $w->where('c.NOCUST', 'like', $q . '%')
+                    ->orWhere('c.NUM2ND', 'like', $q . '%')
+                    ->orWhere('c.NOCUST', 'like', '%' . $q . '%')
+                    ->orWhere('c.NUM2ND', 'like', '%' . $q . '%');
             });
         } elseif ($mode === 'nama') {
-            $query->whereRaw('LOWER(NMCUST) LIKE ?', ['%' . mb_strtolower($q) . '%']);
+            $query->where(function ($w) use ($q) {
+                $w->where('c.NMCUST', 'like', $q . '%')
+                    ->orWhere('c.NMCUST', 'like', '%' . $q . '%');
+            });
         } else {
             $query->where(function ($w) use ($q) {
-                $w->where('NOCUST', 'like', '%' . $q . '%')
-                    ->orWhere('NUM2ND', 'like', '%' . $q . '%')
-                    ->orWhereRaw('LOWER(NMCUST) LIKE ?', ['%' . mb_strtolower($q) . '%']);
+                $w->where('c.NOCUST', 'like', $q . '%')
+                    ->orWhere('c.NUM2ND', 'like', $q . '%')
+                    ->orWhere('c.NMCUST', 'like', $q . '%')
+                    ->orWhere('c.NOCUST', 'like', '%' . $q . '%')
+                    ->orWhere('c.NUM2ND', 'like', '%' . $q . '%')
+                    ->orWhere('c.NMCUST', 'like', '%' . $q . '%');
             });
         }
 
-        $rows = $query
-            ->orderBy('NMCUST')
-            ->limit(30)
-            ->get(['CUSTID', 'NOCUST', 'NUM2ND', 'NMCUST', 'DESC02', 'DESC03', 'CODE02'])
-            ->map(function ($row) {
-                $nis = trim((string) ($row->NOCUST ?? ''));
-                if ($nis === '') {
-                    $nis = trim((string) ($row->NUM2ND ?? ''));
-                }
-                $nama = trim((string) ($row->NMCUST ?? ''));
-                $custid = (int) ($row->CUSTID ?? 0);
+        $found = $query
+            ->orderBy('c.NMCUST')
+            ->limit(15)
+            ->get(['c.CUSTID', 'c.NOCUST', 'c.NUM2ND', 'c.NMCUST', 'c.DESC02', 'c.DESC03', 'c.CODE02']);
 
-                return [
-                    'custid' => $custid,
-                    'nis' => $nis,
-                    'nama' => $nama,
-                    'label' => $nis !== '' && $nama !== '' ? $nis . ' — ' . $nama : ($nis ?: $nama),
-                    'kelas' => trim((string) ($row->DESC02 ?? '')),
-                    'kelompok' => trim((string) ($row->DESC03 ?? '')),
-                    'jenjang' => trim((string) ($row->CODE02 ?? '')),
-                    'saldo' => $this->fetchSaldo($custid),
-                ];
-            })
-            ->values()
-            ->all();
+        $saldoMap = $this->fetchSaldoMap($found->pluck('CUSTID')->map(fn ($id) => (int) $id)->all());
+
+        $rows = $found->map(function ($row) use ($saldoMap) {
+            $nis = trim((string) ($row->NOCUST ?? ''));
+            if ($nis === '') {
+                $nis = trim((string) ($row->NUM2ND ?? ''));
+            }
+            $nama = trim((string) ($row->NMCUST ?? ''));
+            $custid = (int) ($row->CUSTID ?? 0);
+
+            return [
+                'custid' => $custid,
+                'nis' => $nis,
+                'nama' => $nama,
+                'label' => $nis !== '' && $nama !== '' ? $nis . ' — ' . $nama : ($nis ?: $nama),
+                'kelas' => trim((string) ($row->DESC02 ?? '')),
+                'kelompok' => trim((string) ($row->DESC03 ?? '')),
+                'jenjang' => trim((string) ($row->CODE02 ?? '')),
+                'saldo' => (int) ($saldoMap[$custid] ?? 0),
+            ];
+        })->values()->all();
 
         return response()->json(['rows' => $rows]);
     }
@@ -366,24 +375,50 @@ class KeluarUangSakuController extends Controller
 
     private function fetchSaldo(int $custid): int
     {
+        $map = $this->fetchSaldoMap([$custid]);
+
+        return (int) ($map[$custid] ?? 0);
+    }
+
+    /**
+     * @param  list<int>  $custids
+     * @return array<int, int>
+     */
+    private function fetchSaldoMap(array $custids): array
+    {
+        $custids = array_values(array_unique(array_filter(array_map('intval', $custids))));
+        if ($custids === []) {
+            return [];
+        }
+
         try {
-            $v = DB::connection('DATA_MYSQL')
+            $rows = DB::connection('DATA_MYSQL')
                 ->table('v_saldo_va')
-                ->where('CUSTID', $custid)
-                ->value('SALDO');
-            if ($v !== null) {
-                return (int) $v;
+                ->whereIn('CUSTID', $custids)
+                ->get(['CUSTID', 'SALDO']);
+
+            $map = [];
+            foreach ($rows as $row) {
+                $map[(int) $row->CUSTID] = (int) ($row->SALDO ?? 0);
             }
+
+            return $map;
         } catch (\Throwable) {
         }
 
-        $row = DB::connection('DATA_MYSQL')
+        $rows = DB::connection('DATA_MYSQL')
             ->table('sccttran')
-            ->where('CUSTID', $custid)
-            ->selectRaw('CAST(COALESCE(SUM(KREDIT),0) AS SIGNED) - CAST(COALESCE(SUM(DEBET),0) AS SIGNED) as saldo')
-            ->first();
+            ->whereIn('CUSTID', $custids)
+            ->groupBy('CUSTID')
+            ->selectRaw('CUSTID, CAST(COALESCE(SUM(KREDIT),0) AS SIGNED) - CAST(COALESCE(SUM(DEBET),0) AS SIGNED) as saldo')
+            ->get();
 
-        return (int) ($row->saldo ?? 0);
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int) $row->CUSTID] = (int) ($row->saldo ?? 0);
+        }
+
+        return $map;
     }
 
     private function fetchCashoutRows(int $custid): Collection

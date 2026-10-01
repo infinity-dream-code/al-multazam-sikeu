@@ -50,8 +50,7 @@
             <form id="formDebit" method="POST" action="{{ route('admin.smartcard.debit-saldo.debit') }}">@csrf</form>
             <form id="formClear" method="POST" action="{{ route('admin.smartcard.debit-saldo.clear') }}">@csrf</form>
             <p class="text-muted small mb-0 mt-3">
-                Setiap siswa di list akan di-debit <strong>Rp {{ number_format($debitAmount, 0, ',', '.') }}</strong>
-                (<code>METODE=REDUCE</code>, <code>FIDBANK=AdminFee</code>).
+                Setiap siswa di list akan di-debit <strong>Rp {{ number_format($debitAmount, 0, ',', '.') }}</strong>.
             </p>
         </div>
     </div>
