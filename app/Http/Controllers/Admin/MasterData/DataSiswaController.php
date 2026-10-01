@@ -122,6 +122,26 @@ class DataSiswaController extends Controller
 
     public function getData(Request $request)
     {
+        try {
+            return $this->buildDataResponse($request);
+        } catch (\Throwable $e) {
+            report($e);
+            \Illuminate\Support\Facades\Log::error('DataSiswa getData failed', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'draw' => (int) $request->get('draw'),
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+                'error' => 'Gagal memuat data siswa: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function buildDataResponse(Request $request)
+    {
         $draw = (int) $request->get("draw");
         $start = (int) $request->get("start", 0);
         $length = (int) $request->get("length", 10);
@@ -134,10 +154,16 @@ class DataSiswaController extends Controller
         $columnName = $defaultColumn;
         $columnSortOrder = $defaultOrder;
 
+        $hasNoWa = $this->scctcustHasColumn('NO_WA');
+        $hasMusrifah = $this->scctcustHasColumn('musrifah');
+
         $sortable = [
             "nocust", "NUM2ND", "nmcust", "CODE02", "DESC02", "DESC03",
-            "DESC04", "CODE04", "DESC05", "GENUS", "NO_WA", "STCUST",
+            "DESC04", "CODE04", "DESC05", "GENUS", "STCUST",
         ];
+        if ($hasNoWa) {
+            $sortable[] = "NO_WA";
+        }
 
         $orderArr = $request->get("order");
         if (is_array($orderArr) && !empty($columnName_arr)) {
@@ -157,7 +183,7 @@ class DataSiswaController extends Controller
             $filter = [];
         }
 
-        if ($this->unitScope !== null) {
+        if ($this->unitScope !== null && $this->unitScope !== '') {
             $filter = array_merge($filter, [
                 "scctcust.CODE02" => $this->unitScope,
             ]);
@@ -197,11 +223,15 @@ class DataSiswaController extends Controller
             "scctcust.nocust",
             "scctcust.NUM2ND",
             "scctcust.GENUS",
-            "scctcust.NO_WA",
             "scctcust.CODE04",
             "scctcust.DESC05",
-            "scctcust.musrifah",
         ];
+        if ($hasNoWa) {
+            $whereAny[] = "scctcust.NO_WA";
+        }
+        if ($hasMusrifah) {
+            $whereAny[] = "scctcust.musrifah";
+        }
 
         $select = [
             "scctcust.CUSTID",
@@ -215,10 +245,14 @@ class DataSiswaController extends Controller
             "scctcust.CODE04",
             "scctcust.DESC05",
             "scctcust.GENUS",
-            "scctcust.NO_WA",
-            "scctcust.musrifah",
             "scctcust.STCUST",
         ];
+        if ($hasNoWa) {
+            $select[] = "scctcust.NO_WA";
+        }
+        if ($hasMusrifah) {
+            $select[] = "scctcust.musrifah";
+        }
 
         $baseQuery = scctcust::query()
             ->when(!empty($filters), function ($q) use ($filters) {
@@ -247,33 +281,34 @@ class DataSiswaController extends Controller
             ->select($select)
             ->get();
 
-        $records = $records->map(function ($item) {
-                $row = $item->toArray();
-                $nis = trim((string) ($item->nocust ?? ''));
-                $musrifah = trim((string) ($item->musrifah ?? ''));
-                $row["item_id"] = $item->CUSTID;
-                $row["nis"] = $item->nocust;
-                $row["va_spp"] = ($nis !== '' && $nis !== '-')
-                    ? scctcust::showVASpp($nis)
-                    : '';
-                $row["va_saku"] = ($nis !== '' && $nis !== '-')
-                    ? scctcust::showVASaku($nis)
-                    : '';
-                $row["no_pendaftaran"] = $item->NUM2ND;
-                $row["nama"] = $item->nmcust;
-                $row["angkatan"] = $item->DESC04;
-                $row["gender"] = $item->CODE04;
-                $row["alamat"] = $item->DESC05;
-                $row["ayah"] = $item->GENUS;
-                $row["no_wa"] = $item->NO_WA;
-                $row["musrifah"] = $musrifah;
-                $row["musrifah_display"] = $musrifah;
-                $row["edit_siswa"] = true;
-                $row["set_status"] = true;
-                unset($row["CUSTID"]);
+        $records = $records->map(function ($item) use ($hasNoWa, $hasMusrifah) {
+            $row = $item->toArray();
+            $nis = trim((string) ($item->nocust ?? ''));
+            $musrifah = $hasMusrifah ? trim((string) ($item->musrifah ?? '')) : '';
+            $row["item_id"] = $item->CUSTID;
+            $row["nis"] = $item->nocust;
+            $row["va_spp"] = ($nis !== '' && $nis !== '-')
+                ? scctcust::showVASpp($nis)
+                : '';
+            $row["va_saku"] = ($nis !== '' && $nis !== '-')
+                ? scctcust::showVASaku($nis)
+                : '';
+            $row["no_pendaftaran"] = $item->NUM2ND;
+            $row["nama"] = $item->nmcust;
+            $row["angkatan"] = $item->DESC04;
+            $row["gender"] = $item->CODE04;
+            $row["alamat"] = $item->DESC05;
+            $row["ayah"] = $item->GENUS;
+            $row["NO_WA"] = $hasNoWa ? ($item->NO_WA ?? '') : '';
+            $row["no_wa"] = $row["NO_WA"];
+            $row["musrifah"] = $musrifah;
+            $row["musrifah_display"] = $musrifah;
+            $row["edit_siswa"] = true;
+            $row["set_status"] = true;
+            unset($row["CUSTID"]);
 
-                return $row;
-            });
+            return $row;
+        });
 
         return response()->json([
             "draw" => $draw,
@@ -281,6 +316,24 @@ class DataSiswaController extends Controller
             "recordsFiltered" => $totalRecordsWithFilter,
             "data" => $records,
         ]);
+    }
+
+    private function scctcustHasColumn(string $column): bool
+    {
+        static $cache = [];
+        $key = strtolower($column);
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        try {
+            $cache[$key] = \Illuminate\Support\Facades\Schema::connection('DATA_MYSQL')
+                ->hasColumn('scctcust', $column);
+        } catch (\Throwable) {
+            $cache[$key] = false;
+        }
+
+        return $cache[$key];
     }
 
     public function getSiswaSelect2(Request $request)

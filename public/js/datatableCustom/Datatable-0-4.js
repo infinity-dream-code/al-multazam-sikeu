@@ -871,7 +871,14 @@ async function dataTableCreate(options) {
                     '404': 'Data tidak ditemukan!',
                     '500': 'Internal Server Error',
                 };
-                errorAlert(descriptions[xhr.status] || 'Ada masalah saat mengambil data dari server, Silahkan muat ulang halaman');
+                let msg = descriptions[xhr.status] || 'Ada masalah saat mengambil data dari server, Silahkan muat ulang halaman';
+                try {
+                    const body = xhr.responseJSON;
+                    if (body && body.error) {
+                        msg = body.error;
+                    }
+                } catch (e) {}
+                errorAlert(msg);
             }
         },
         preDrawCallback: function (settings) {
