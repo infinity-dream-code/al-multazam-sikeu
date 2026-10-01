@@ -29,6 +29,9 @@ class SmartcardPlaceholderController extends Controller
             'cek-batas-jajan' => 'CEK Batas Jajan',
         ];
 
+        // saldo-virtual-account sudah punya controller sendiri
+        unset($titles['saldo-virtual-account']);
+
         $mainTitle = $titles[$page] ?? str_replace('-', ' ', ucwords($page, '-'));
 
         return view('admin.smartcard.placeholder', [

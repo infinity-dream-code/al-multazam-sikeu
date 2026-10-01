@@ -181,8 +181,15 @@ Route::prefix("admin")
         Route::prefix("smartcard")
             ->name("smartcard.")
             ->group(function () {
+                Route::controller(\App\Http\Controllers\Admin\Smartcard\SaldoVirtualAccountController::class)
+                    ->prefix("saldo-virtual-account")
+                    ->name("saldo-virtual-account.")
+                    ->group(function () {
+                        Route::get("/", "index")->name("index");
+                        Route::post("transaksi", "transaksi")->name("transaksi");
+                    });
+
                 $pages = [
-                    'saldo-virtual-account',
                     'data-kartu-siswa',
                     'setting-blokir-kartu',
                     'setting-batasan-saku',
