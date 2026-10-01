@@ -67,7 +67,7 @@
                     <div class="col-12 d-flex gap-2">
                         <button type="submit" class="btn btn-primary" onclick="document.getElementById('svaMode').value='cari'">Cari</button>
                         <button type="submit" class="btn btn-info" onclick="document.getElementById('svaMode').value='saldo'">Cari Saldo</button>
-                        <button type="button" class="btn btn-secondary" id="btnLihatTransaksi">Lihat Transaksi</button>
+                        <button type="button" class="btn btn-secondary" id="btnLihatTransaksi" data-bs-toggle="modal" data-bs-target="#modalTransaksiAll">Lihat Transaksi</button>
                         <a href="{{ route('admin.smartcard.saldo-virtual-account.index') }}" class="btn btn-outline-secondary">Reset</a>
                     </div>
                 </div>
@@ -98,7 +98,6 @@
                         <thead class="table-light">
                         @if (($filters['mode'] ?? 'cari') === 'saldo')
                             <tr>
-                                <th style="width:28px;"></th>
                                 <th>Nama</th>
                                 <th class="text-end">Saldo</th>
                                 <th>Kelas</th>
@@ -107,21 +106,21 @@
                             </tr>
                         @else
                             <tr>
-                                <th style="width:28px;"></th>
                                 <th>NIS</th>
                                 <th>No Pend</th>
                                 <th>NO VA</th>
                                 <th>Nama</th>
+                                <th class="text-end">Saldo</th>
+                                <th>Kelas</th>
+                                <th>Gender</th>
+                                <th>Kelompok</th>
                             </tr>
                         @endif
                         </thead>
                         <tbody>
                         @if ($isSearch ?? false)
                             @forelse ($rows as $row)
-                                <tr class="sva-row" data-custid="{{ (int) $row->CUSTID }}" data-saldo="{{ (int) $row->saldo }}">
-                                    <td class="text-center">
-                                        <input type="checkbox" class="form-check-input sva-check" value="{{ (int) $row->CUSTID }}">
-                                    </td>
+                                <tr class="sva-row" role="button" data-custid="{{ (int) $row->CUSTID }}" data-saldo="{{ (int) $row->saldo }}">
                                     @if (($filters['mode'] ?? 'cari') === 'saldo')
                                         <td>{{ $row->nama }}</td>
                                         <td class="text-end">{{ number_format((int) $row->saldo, 0, ',', '.') }}</td>
@@ -133,16 +132,20 @@
                                         <td>{{ $row->no_pend }}</td>
                                         <td>{{ $row->no_va }}</td>
                                         <td>{{ $row->nama }}</td>
+                                        <td class="text-end">{{ number_format((int) $row->saldo, 0, ',', '.') }}</td>
+                                        <td>{{ $row->kelas }}</td>
+                                        <td>{{ $row->gender }}</td>
+                                        <td>{{ $row->kelompok }}</td>
                                     @endif
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">Tidak ada data.</td>
+                                    <td colspan="8" class="text-center text-muted py-4">Tidak ada data.</td>
                                 </tr>
                             @endforelse
                         @else
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">Gunakan filter lalu klik Cari / Cari Saldo.</td>
+                                <td colspan="8" class="text-center text-muted py-4">Gunakan filter lalu klik Cari / Cari Saldo.</td>
                             </tr>
                         @endif
                         </tbody>
@@ -165,10 +168,60 @@
                         </thead>
                         <tbody id="svaTrxBody">
                         <tr>
-                            <td colspan="4" class="text-center text-muted py-4">Pilih siswa lalu klik Lihat Transaksi.</td>
+                            <td colspan="4" class="text-center text-muted py-4">Klik siswa di kiri untuk melihat transaksi.</td>
                         </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Popup Lihat Transaksi (semua, filter tanggal) --}}
+    <div class="modal fade" id="modalTransaksiAll" tabindex="-1" aria-labelledby="modalTransaksiAllLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTransaksiAllLabel">DATA TRANSAKSI</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Dari Tanggal</label>
+                            <input type="date" class="form-control" id="trxAllDari" value="{{ now()->startOfMonth()->toDateString() }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Sampai Tanggal</label>
+                            <input type="date" class="form-control" id="trxAllSampai" value="{{ now()->toDateString() }}">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-primary w-100" id="btnCariTrxAll">Cari</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive" style="max-height: 55vh;">
+                        <table class="table table-sm table-bordered table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                            <tr>
+                                <th>NIS</th>
+                                <th>VANO</th>
+                                <th>Nama</th>
+                                <th>Tanggal</th>
+                                <th class="text-end">Debet</th>
+                                <th class="text-end">Kredit</th>
+                                <th>Remark</th>
+                                <th>Unit</th>
+                                <th>Kelas</th>
+                                <th>Bank</th>
+                            </tr>
+                            </thead>
+                            <tbody id="trxAllBody">
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-4">Isi tanggal lalu klik Cari.</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -180,48 +233,27 @@
 (function () {
     const saldoBox = document.getElementById('svaSaldoBox');
     const trxBody = document.getElementById('svaTrxBody');
-    const btnTrx = document.getElementById('btnLihatTransaksi');
     const trxUrl = @json(route('admin.smartcard.saldo-virtual-account.transaksi'));
+    const trxAllUrl = @json(route('admin.smartcard.saldo-virtual-account.transaksi-all'));
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
 
     function fmt(n) {
         return new Intl.NumberFormat('id-ID').format(Number(n || 0));
     }
 
-    function selectedIds() {
-        return Array.from(document.querySelectorAll('.sva-check:checked')).map(el => el.value);
-    }
-
-    function updateSaldoFromSelection() {
-        const checked = Array.from(document.querySelectorAll('.sva-check:checked'));
-        if (!checked.length) {
-            saldoBox.value = '0';
-            return;
-        }
-        let sum = 0;
-        checked.forEach(ch => {
-            const row = ch.closest('tr');
-            sum += Number(row?.dataset?.saldo || 0);
-        });
-        saldoBox.value = fmt(sum);
-    }
-
-    async function loadTransaksi(ids) {
-        if (!ids.length) {
-            alert('Pilih minimal 1 siswa.');
-            return;
-        }
-
+    async function loadTransaksiSiswa(custId, saldo) {
         trxBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Memuat...</td></tr>';
+        saldoBox.value = fmt(saldo);
 
         try {
             const res = await fetch(trxUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
+                    'X-CSRF-TOKEN': csrf,
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({ cust_ids: ids }),
+                body: JSON.stringify({ cust_ids: [custId] }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Gagal memuat transaksi');
@@ -249,40 +281,70 @@
             </tr>`;
 
             trxBody.innerHTML = html;
-            if (ids.length === 1) {
-                const row = document.querySelector(`.sva-row[data-custid="${ids[0]}"]`);
-                if (row) {
-                    saldoBox.value = fmt(row.dataset.saldo);
-                } else {
-                    saldoBox.value = fmt(data.saldo);
-                }
-            }
         } catch (err) {
             trxBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">${err.message || err}</td></tr>`;
         }
     }
 
     document.querySelectorAll('.sva-row').forEach(row => {
-        row.addEventListener('click', (e) => {
-            if (e.target.classList.contains('sva-check')) {
-                updateSaldoFromSelection();
-                return;
-            }
-            const cb = row.querySelector('.sva-check');
-            if (!cb) return;
-            document.querySelectorAll('.sva-check').forEach(c => { c.checked = false; });
+        row.addEventListener('click', () => {
             document.querySelectorAll('.sva-row').forEach(r => r.classList.remove('table-primary'));
-            cb.checked = true;
             row.classList.add('table-primary');
-            updateSaldoFromSelection();
+            loadTransaksiSiswa(row.dataset.custid, row.dataset.saldo);
         });
     });
 
-    document.querySelectorAll('.sva-check').forEach(ch => {
-        ch.addEventListener('change', updateSaldoFromSelection);
-    });
+    async function loadTransaksiAll() {
+        const dari = document.getElementById('trxAllDari')?.value || '';
+        const sampai = document.getElementById('trxAllSampai')?.value || '';
+        const body = document.getElementById('trxAllBody');
+        if (!dari || !sampai) {
+            alert('Isi Dari Tanggal dan Sampai Tanggal.');
+            return;
+        }
 
-    btnTrx?.addEventListener('click', () => loadTransaksi(selectedIds()));
+        body.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">Memuat...</td></tr>';
+
+        try {
+            const res = await fetch(trxAllUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ dari_tanggal: dari, sampai_tanggal: sampai }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Gagal memuat transaksi');
+
+            const rows = data.rows || [];
+            if (!rows.length) {
+                body.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">Tidak ada transaksi.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = rows.map(r => {
+                const tgl = r.tanggal ? String(r.tanggal).replace('T', ' ').substring(0, 19) : '—';
+                return `<tr>
+                    <td>${r.nis}</td>
+                    <td>${r.vano}</td>
+                    <td>${r.nama}</td>
+                    <td>${tgl}</td>
+                    <td class="text-end">${fmt(r.debet)}</td>
+                    <td class="text-end">${fmt(r.kredit)}</td>
+                    <td>${r.remark}</td>
+                    <td>${r.unit}</td>
+                    <td>${r.kelas}</td>
+                    <td>${r.bank}</td>
+                </tr>`;
+            }).join('');
+        } catch (err) {
+            body.innerHTML = `<tr><td colspan="10" class="text-center text-danger py-3">${err.message || err}</td></tr>`;
+        }
+    }
+
+    document.getElementById('btnCariTrxAll')?.addEventListener('click', loadTransaksiAll);
 })();
 </script>
 @endsection

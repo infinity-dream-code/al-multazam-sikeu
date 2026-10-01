@@ -187,6 +187,7 @@ Route::prefix("admin")
                     ->group(function () {
                         Route::get("/", "index")->name("index");
                         Route::post("transaksi", "transaksi")->name("transaksi");
+                        Route::post("transaksi-all", "transaksiAll")->name("transaksi-all");
                     });
 
                 $pages = [

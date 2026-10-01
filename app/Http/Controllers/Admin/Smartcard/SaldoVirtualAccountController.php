@@ -136,6 +136,89 @@ class SaldoVirtualAccountController extends Controller
         }
     }
 
+    /** Popup Lihat Transaksi — semua transaksi (bukan per anak), filter tanggal. */
+    public function transaksiAll(Request $request): JsonResponse
+    {
+        $dari = trim((string) $request->input('dari_tanggal', ''));
+        $sampai = trim((string) $request->input('sampai_tanggal', ''));
+
+        if ($dari === '' || $sampai === '') {
+            return response()->json(['message' => 'Isi Dari Tanggal dan Sampai Tanggal.'], 422);
+        }
+
+        try {
+            $query = DB::connection('DATA_MYSQL')
+                ->table('sccttran as t')
+                ->leftJoin('scctcust as c', 't.CUSTID', '=', 'c.CUSTID')
+                ->whereDate('t.TRXDATE', '>=', $dari)
+                ->whereDate('t.TRXDATE', '<=', $sampai)
+                ->orderByDesc('t.TRXDATE')
+                ->orderByDesc('t.urut')
+                ->limit(2000);
+
+            $unit = trim((string) (Auth::user()->unit ?? ''));
+            if ($unit !== '') {
+                $query->where(function ($q) use ($unit) {
+                    $q->whereRaw('TRIM(CAST(c.CODE01 AS CHAR)) = ?', [$unit])
+                        ->orWhereRaw('TRIM(CAST(c.CODE02 AS CHAR)) = ?', [$unit]);
+                });
+            }
+
+            $vaPrefix = $this->vaPrefix;
+            $rows = $query
+                ->get([
+                    't.DEBET',
+                    't.KREDIT',
+                    't.TRXDATE',
+                    't.METODE',
+                    't.FIDBANK',
+                    't.NOREFF',
+                    'c.NOCUST',
+                    'c.NMCUST',
+                    'c.CODE02',
+                    'c.DESC02',
+                    'c.DESC03',
+                ])
+                ->map(static function ($row) use ($vaPrefix) {
+                    $nis = trim((string) ($row->NOCUST ?? ''));
+                    $remark = trim((string) ($row->METODE ?? ''));
+                    if ($remark === '') {
+                        $remark = trim((string) ($row->NOREFF ?? ''));
+                    }
+                    $unit = trim((string) ($row->CODE02 ?? ''));
+                    $kelas = trim((string) ($row->DESC02 ?? ''));
+                    if ($kelas === '') {
+                        $kelas = trim((string) ($row->DESC03 ?? ''));
+                    }
+                    $bank = trim((string) ($row->FIDBANK ?? ''));
+
+                    return [
+                        'nis' => $nis !== '' ? $nis : '-',
+                        'vano' => ($nis !== '' && $nis !== '-')
+                            ? scctcust::formatVA($vaPrefix, $nis)
+                            : '-',
+                        'nama' => trim((string) ($row->NMCUST ?? '')) ?: '-',
+                        'tanggal' => $row->TRXDATE,
+                        'debet' => (int) ($row->DEBET ?? 0),
+                        'kredit' => (int) ($row->KREDIT ?? 0),
+                        'remark' => $remark !== '' ? $remark : '-',
+                        'unit' => $unit !== '' ? $unit : '-',
+                        'kelas' => $kelas !== '' ? $kelas : '-',
+                        'bank' => $bank !== '' ? $bank : '-',
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return response()->json(['rows' => $rows]);
+        } catch (\Throwable $e) {
+            Log::error('Smartcard SaldoVA transaksiAll failed', ['message' => $e->getMessage()]);
+            report($e);
+
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
     private function fetchSaldoRows(array $filters)
     {
         $query = DB::connection('DATA_MYSQL')->table('v_saldo_va as v');
